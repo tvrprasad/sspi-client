@@ -1,1 +1,1 @@
-# sspi-client
+# WORK IN PROGRESS. DO NOT CONSUME. REALLY. DON'T :)

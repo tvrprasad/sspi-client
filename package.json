@@ -1,0 +1,18 @@
+{
+  "name": "sspi-client",
+  "version": "0.0.0",
+  "description": "SSPI Client Library.",
+  "main": "src_js/index.js",
+  "private": true,
+  "dependencies": {
+    "nan": "^2.4.0",
+    "bindings": "^1.2.1"
+  },
+  "devDependencies": {
+    "nodeunit": "^0.10.2"
+  },
+  "scripts": {
+    "test": "nodeunit --reporter minimal test/sspi_client_tests.js"
+  },
+  "gypfile": true
+}
