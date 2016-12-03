@@ -12,7 +12,7 @@
     "nodeunit": "^0.10.2"
   },
   "scripts": {
-    "test": "nodeunit --reporter minimal test/sspi_client_tests.js"
+    "test": "nodeunit --reporter minimal test/"
   },
   "gypfile": true
 }

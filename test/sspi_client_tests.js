@@ -3,8 +3,29 @@ const SspiClientApi = require('../src_js/index.js');
 // Comment/Uncomment to enable/disable debug logging in native code.
 // SspiClientApi.enableNativeDebugLogging();
 
+class MaybeDone {
+  constructor(test, numRuns) {
+    this.test = test;
+    this.numRuns = numRuns;
+    this.numRunsSoFar = 0;
+  }
+
+  done() {
+    this.numRunsSoFar++;
+
+    if (this.numRunsSoFar == this.numRuns) {
+      this.test.done();
+    }
+  }
+}
+
+exports.sspiPackageNotSetBeforeInitialization = function (test) {
+  test.strictEqual(SspiClientApi.getSspiPackageName(), 'SSPI package not initialized');
+  test.done();
+}
+
 exports.constructorSuccess = function(test) {
-  const sspiClient = new SspiClientApi.SspiClient("ServerName");
+  const sspiClient = new SspiClientApi.SspiClient("fake_spn");
   test.ok(sspiClient);
   test.done();
 }
@@ -21,7 +42,7 @@ exports.constructorEmptyArgs = function(test) {
 }
 
 exports.constructorInvalidArgType = function(test) {
-  const expectedErrorMessage = 'Invalid argument type for \'serverName\'.';
+  const expectedErrorMessage = 'Invalid argument type for \'spn\'.';
 
   try {
     const numberTypeArg = 75;
@@ -33,7 +54,7 @@ exports.constructorInvalidArgType = function(test) {
 }
 
 exports.constructorEmptyStringArg = function(test) {
-  const expectedErrorMessage = 'Empty string argument for \'serverName\'.';
+  const expectedErrorMessage = 'Empty string argument for \'spn\'.';
 
   try {
     const emptyStringArg = '';
@@ -44,9 +65,62 @@ exports.constructorEmptyStringArg = function(test) {
   }
 }
 
-function getNextBlobSuccessImpl(test, maybeDone) {
-  const sspiClient = new SspiClientApi.SspiClient('ServerName');
-  sspiClient.getNextBlob((clientResponse, isDone, errorCode, errorString) => {
+function getNextBlobBasicImpl(test, sspiClient) {
+  const serverResponse = null;
+  const serverResponseLength = 0;
+
+  sspiClient.getNextBlob(serverResponse, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
+    test.ok(clientResponse.length > 0);
+    test.strictEqual(isDone, false);
+    test.strictEqual(errorCode, 0);
+    test.strictEqual(errorString, '');
+
+    let notAllZeros = false;
+    let notAllEqual = false;
+    let prevByte = clientResponse[0];
+    for (i = 0; i < clientResponse.length; i++) {
+      if (prevByte != clientResponse[i]) {
+        notAllEqual = true;
+      }
+
+      if (clientResponse[i] != 0) {
+        notAllZeros = true;
+      }
+
+      if (notAllZeros && notAllEqual) {
+        break;
+      }
+    }
+
+    test.ok(notAllEqual);
+    test.ok(notAllZeros);
+
+    test.done();
+  });
+}
+
+// Basic test that goes through the motions of a first invocation of
+// getNextBlob on an instance of SspiClient. This sends a fake spn but the
+// first call will succeed as this is just preparing client response to send
+// to the server where actual validation will happen.
+exports.getNextBlobBasic = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+  getNextBlobBasicImpl(test, sspiClient);
+}
+
+exports.getNextBlobBasicForceCompleteAuth = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+  sspiClient.utEnableForceCompleteAuth();
+  getNextBlobBasicImpl(test, sspiClient);
+}
+
+function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverResponseLength, maybeDone) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  // Set unit test mode to get a canned response corresponding to empty serverResponse.
+  sspiClient.utEnableCannedResponse();
+
+  sspiClient.getNextBlob(serverResponse, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
     test.strictEqual(clientResponse.length, 25);
     for (i = 0; i < 25; i++) {
       test.strictEqual(clientResponse[i], i);
@@ -54,49 +128,172 @@ function getNextBlobSuccessImpl(test, maybeDone) {
 
     test.strictEqual(true, isDone);
     test.strictEqual(errorCode, 0x80090304);
-    test.strictEqual(errorString, 'ErrorOutOfPaper');
+    test.strictEqual(errorString, 'Canned Response without input data.');
 
-    maybeDone();
+    test.strictEqual(SspiClientApi.getSspiPackageName(), 'Negotiate');
+
+    maybeDone.done();
   });
 }
 
-exports.getNextBlobSuccess = function (test) {
-  const numRuns = 5;
+// Validates
+//  - JavaScript going through and executing native code.
+//  - client response coming back from native code to JavaScript correctly.
+exports.getNextBlobCannedResponseEmptyInBuf = function (test) {
+  const numRuns = 7;
+  maybeDone = new MaybeDone(test, numRuns);
 
-  let numRunsSoFar = 0;
-  const doneCallback = () => {
-    numRunsSoFar++;
-    if (numRunsSoFar == numRuns) {
-      test.done();
-    }
+  for (i = 0; i < numRuns - 2; i++) {
+    getNextBlobCannedResponseEmptyInBufImpl(test, null, 0, maybeDone);
   }
 
-  for (i = 0; i < numRuns; i++) {
-    getNextBlobSuccessImpl(test, doneCallback);
+  getNextBlobCannedResponseEmptyInBufImpl(test, Buffer.alloc(10), 0, maybeDone);
+  getNextBlobCannedResponseEmptyInBufImpl(test, 'some string', 0, maybeDone);
+}
+
+// Validates
+//  - JavaScript going through and executing native code.
+//  - server response going from JavaScript to native code correctly.
+//  - client response coming back from native code to JavaScript correctly.
+exports.getNextBlobCannedResponseNonEmptyInBufImpl = function (test) {
+  const serverResponse = Buffer.alloc(35);
+  const serverResponseLength = 20;
+  for (i = 0; i < serverResponseLength; i++) {
+    serverResponse[i] = serverResponseLength - i;
+  }
+
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  // Set unit test mode to get a canned response corresponding to empty serverResponse.
+  sspiClient.utEnableCannedResponse();
+
+  sspiClient.getNextBlob(serverResponse, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
+    test.strictEqual(clientResponse.length, serverResponseLength);
+    for (i = 0; i < serverResponseLength; i++) {
+      test.strictEqual(clientResponse[i], serverResponse[i]);
+    }
+
+    test.strictEqual(false, isDone);
+    test.strictEqual(errorCode, 0x80090303);
+    test.strictEqual(errorString, 'Canned Response with input data.');
+
+    test.strictEqual(SspiClientApi.getSspiPackageName(), 'Negotiate');
+
+    test.done();
+  });
+}
+
+exports.getNextBlobMultipleInCallbacksSameInstance = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  // Should not throw exception.
+  sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+    sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+      test.done();
+    });
+  });
+}
+
+exports.getNextBlobMultipleInProgressSameInstanceFails = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  // Should not throw exception.
+  sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+  });
+
+  // Should throw exception.
+  const expectedErrorMessage = 'Single invocation of getNextBlob per instance of SspiClient may be in flight.';
+  try {
+    sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+    });
+  } catch (err) {
+    test.strictEqual(err.message, expectedErrorMessage);
+    test.done();
   }
 }
 
-exports.getNextBlobEmptyArgs = function(test) {
+function getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, getNextBlobBound) {
   const expectedErrorMessage = 'Invalid number of arguments.';
 
-  const sspiClient = new SspiClientApi.SspiClient('ServerName');
   try {
-    sspiClient.getNextBlob();
+    getNextBlobBound();
   } catch (err) {
     test.strictEqual(err.message, expectedErrorMessage);
-    test.done();
+    maybeDone.done();
   }
 }
 
-exports.getNextBlobInvalidArgType = function(test) {
-  const expectedErrorMessage = 'Invalid argument type for \'cb\'.';
+exports.getNextBlobInvalidNumberOfArgs = function (test) {
+  const numRuns = 3;
+  const maybeDone = new MaybeDone(test, 3);
 
-  const sspiClient = new SspiClientApi.SspiClient('ServerName');
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, sspiClient.getNextBlob.bind(sspiClient)
+    );  // Empty args.
+
+  getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, sspiClient.getNextBlob.bind(sspiClient,
+    Buffer.alloc(5)));  // One arg.
+
+  getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, sspiClient.getNextBlob.bind(sspiClient,
+    Buffer.alloc(4), 3)); // Two args.
+}
+
+function getNextBlobInvalidArgImpl(test, expectedErrorMessage, getNextBlobBound, maybeDone) {
   try {
-    const stringTypeArg = 'Some string';
-    sspiClient.getNextBlob(stringTypeArg);
+    getNextBlobBound();
   } catch (err) {
     test.strictEqual(err.message, expectedErrorMessage);
-    test.done();
+    maybeDone.done();
   }
+}
+
+exports.getNextBlobInvalidServerResponseArg = function (test) {
+  const numRuns = 1;
+  const maybeDone = new MaybeDone(test, numRuns);
+  const expectedErrorMessage = 'Invalid argument type for \'serverResponse\'.';
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+  const stringTypeArg = 'Some string';
+  getNextBlobInvalidArgImpl(
+    test,
+    expectedErrorMessage,
+    sspiClient.getNextBlob.bind(sspiClient, stringTypeArg, 10, () => { }),
+    maybeDone);
+}
+
+exports.getNextBlobInvalidServerResponseLengthArg = function (test) {
+  let invalidLengths = [
+    -10,  // Negative integer.
+    "1",  // Number like String.
+    "Somestring",   // String.
+    3.3,  // Float positive.
+    -3.3, // Floag negative.
+  ];
+
+  const numRuns = invalidLengths.length;
+  maybeDone = new MaybeDone(test, numRuns);
+
+  const expectedErrorMessage = '\'serverResponseLength\' must be a non-negative integer.';
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  for (i = 0; i < invalidLengths.length; i++) {
+    getNextBlobInvalidArgImpl(
+      test,
+      expectedErrorMessage,
+      sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(25), invalidLengths[i], () => { }),
+      maybeDone);
+  }
+}
+
+exports.getNextBlobInvalidCallbackArg = function (test) {
+  const numRuns = 1;
+  const maybeDone = new MaybeDone(test, numRuns);
+  const expectedErrorMessage = 'Invalid argument type for \'cb\'.';
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+  const stringTypeArg = 'Some string';
+  getNextBlobInvalidArgImpl(
+    test,
+    expectedErrorMessage,
+    sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(10), 10, stringTypeArg),
+    maybeDone);
 }

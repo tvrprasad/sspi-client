@@ -10,6 +10,7 @@
 // In short, native binding is meant to used by the package implementation. Application
 // should only use API surfaced in JavaScript.
 
+#include <memory>
 #include <nan.h>
 #include <string>
 
@@ -36,7 +37,11 @@ public:
         DebugLog("%ul: Worker Thread: Initialize: SspiClientInitializeWorker::Execute.\n",
             GetCurrentThreadId());
 
-        m_securityStatus = SspiImpl::Initialize(m_errorString, c_errorStringBufferSize);
+        m_securityStatus = SspiImpl::Initialize(
+            m_sspiPackageName,
+            c_sspiPackageNameBufferSize,
+            m_errorString,
+            c_errorStringBufferSize);
     }
 
     // Executed in main event loop thread after async work is completed. Invokes
@@ -48,11 +53,12 @@ public:
 
         v8::Local<v8::Value> argv[] =
         {
+            Nan::New<v8::String>(m_sspiPackageName).ToLocalChecked(),
             Nan::New<v8::Uint32>(m_securityStatus),
             Nan::New<v8::String>(m_errorString).ToLocalChecked()
         };
 
-        callback->Call(2, argv);
+        callback->Call(3, argv);
     }
 
     ~SspiClientInitializeWorker()
@@ -66,21 +72,36 @@ private:
     SspiClientInitializeWorker(const SspiClientInitializeWorker&);
     SspiClientInitializeWorker& operator=(const SspiClientInitializeWorker&);
 
-    static const int c_errorStringBufferSize = 256;
-
     SECURITY_STATUS m_securityStatus = SEC_E_INTERNAL_ERROR;
+
+    static const int c_errorStringBufferSize = 256;
     char m_errorString[c_errorStringBufferSize];
+
+    static const int c_sspiPackageNameBufferSize = 32;
+    char m_sspiPackageName[c_sspiPackageNameBufferSize];
 };
 
 // Worker class to get the next client response asynchronously.
 class SspiClientGetNextBlobWorker : public Nan::AsyncWorker
 {
 public:
-    SspiClientGetNextBlobWorker(Nan::Callback* callback, const char* serverName)
-        : Nan::AsyncWorker(callback), m_serverName(serverName)
+    SspiClientGetNextBlobWorker(
+        Nan::Callback* callback,
+        const std::shared_ptr<SspiImpl>& sspiImpl,
+        const char* inBlob,
+        int inBlobLength)
+        : Nan::AsyncWorker(callback),
+          m_sspiImpl(sspiImpl),
+          m_inBlobLength(inBlobLength)
     {
-        DebugLog("%ul: Main event loop: SspiClientGetNextBlobWorker::SspiClientInitializeWorker. serverName=%s\n",
-            GetCurrentThreadId(), m_serverName.c_str());
+        DebugLog("%ul: Main event loop: SspiClientGetNextBlobWorker::SspiClientInitializeWorker.\n",
+            GetCurrentThreadId());
+
+        if (m_inBlobLength)
+        {
+            m_inBlob.reset(new char[m_inBlobLength]);
+            memcpy(m_inBlob.get(), inBlob, m_inBlobLength);
+        }
     }
 
     // This function executes inside the worker-thread. No V8 data-structures
@@ -92,10 +113,11 @@ public:
         DebugLog("%ul: Worker Thread: Initialize: SspiClientGetNextBlobWorker::Execute.\n",
             GetCurrentThreadId());
 
-        m_securityStatus = SspiImpl::GetNextBlob(
-            m_serverName.c_str(),
-            &m_blob,
-            &m_blobLength,
+        m_securityStatus = m_sspiImpl->GetNextBlob(
+            m_inBlob.get(),
+            m_inBlobLength,
+            &m_outBlob,
+            &m_outBlobLength,
             &m_isDone,
             m_errorString,
             c_errorStringBufferSize);
@@ -110,7 +132,7 @@ public:
 
         v8::Local<v8::Value> argv[] =
         {
-            Nan::NewBuffer(m_blob, m_blobLength, FreeCallback, nullptr).ToLocalChecked(),
+            Nan::NewBuffer(m_outBlob, m_outBlobLength, FreeCallback, nullptr).ToLocalChecked(),
             Nan::New<v8::Boolean>(m_isDone),
             Nan::New<v8::Uint32>(m_securityStatus),
             Nan::New<v8::String>(m_errorString).ToLocalChecked()
@@ -138,15 +160,20 @@ private:
     SspiClientGetNextBlobWorker(const SspiClientGetNextBlobWorker&);
     SspiClientGetNextBlobWorker& operator=(const SspiClientGetNextBlobWorker&);
 
-    std::string m_serverName;
+    // Lifetime shared with SspiClientObject.
+    std::shared_ptr<SspiImpl> m_sspiImpl;
+
     SECURITY_STATUS m_securityStatus;
     static const int c_errorStringBufferSize = 256;
     char m_errorString[c_errorStringBufferSize];
 
+    std::unique_ptr<char> m_inBlob;
+    int m_inBlobLength;
+
     // This is allocated and free'd by SspiImpl class. It's lifetime is managed
     // by the V8 garbage collector.
-    char* m_blob;
-    int m_blobLength;
+    char* m_outBlob;
+    int m_outBlobLength;
     bool m_isDone;
 };
 
@@ -176,6 +203,8 @@ public:
         tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
         Nan::SetPrototypeMethod(tpl, "getNextBlob", GetNextBlob);
+        Nan::SetPrototypeMethod(tpl, "utEnableCannedResponse", UtEnableCannedResponse);
+        Nan::SetPrototypeMethod(tpl, "utForceCompleteAuth", UtForceCompleteAuth);
 
         s_constructor.Reset(Nan::GetFunction(tpl).ToLocalChecked());
         Nan::Set(
@@ -189,7 +218,7 @@ private:
     SspiClientObject(const SspiClientGetNextBlobWorker&);
     SspiClientObject& operator=(const SspiClientGetNextBlobWorker&);
 
-    explicit SspiClientObject(const char* serverName) : m_serverName(serverName)
+    explicit SspiClientObject(const char* spn) : m_sspiImpl(new SspiImpl(spn))
     {
         DebugLog("%ul: Main event loop: SspiClientObject::SspiClientObject.\n", GetCurrentThreadId());
     }
@@ -205,8 +234,8 @@ private:
         {
             // Constructor invoked with new SspiClient().
             DebugLog("%ul: Main event loop: SspiClientObject::New IsConstructorCall.\n", GetCurrentThreadId());
-            Nan::Utf8String serverName(info[0]);
-            SspiClientObject* sspiClientObject = new SspiClientObject(*serverName);
+            Nan::Utf8String spn(info[0]);
+            SspiClientObject* sspiClientObject = new SspiClientObject(*spn);
             sspiClientObject->Wrap(info.This());
             info.GetReturnValue().Set(info.This());
         }
@@ -228,12 +257,40 @@ private:
     {
         DebugLog("%ul: Main event loop: SspiClientObject::GetNextBlob.\n", GetCurrentThreadId());
 
-        Nan::Callback* callback = new Nan::Callback(info[0].As<v8::Function>());
+        int inBlobLength = info[1]->IntegerValue();
+        char* inBlob = nullptr;
+        if (inBlobLength > 0)
+        {
+            inBlob = node::Buffer::Data(info[0]->ToObject());
+        }
+
+        Nan::Callback* callback = new Nan::Callback(info[2].As<v8::Function>());
         SspiClientObject* sspiClientObject = Nan::ObjectWrap::Unwrap<SspiClientObject>(info.Holder());
-        AsyncQueueWorker(new SspiClientGetNextBlobWorker(callback, sspiClientObject->m_serverName.c_str()));
+        AsyncQueueWorker(new SspiClientGetNextBlobWorker(
+            callback,
+            sspiClientObject->m_sspiImpl,
+            inBlob,
+            inBlobLength));
     }
 
-    std::string m_serverName;
+    static NAN_METHOD(UtEnableCannedResponse)
+    {
+        DebugLog("%ul: Main event loop: SspiClientObject::UtEnableCannedResponse.\n", GetCurrentThreadId());
+        SspiClientObject* sspiClientObject = Nan::ObjectWrap::Unwrap<SspiClientObject>(info.Holder());
+        sspiClientObject->m_sspiImpl->UtEnableCannedResponse(info[0]->BooleanValue());
+    }
+
+    static NAN_METHOD(UtForceCompleteAuth)
+    {
+        DebugLog("%ul: Main event loop: SspiClientObject::UtForceCompleteAuth.\n", GetCurrentThreadId());
+        SspiClientObject* sspiClientObject = Nan::ObjectWrap::Unwrap<SspiClientObject>(info.Holder());
+        sspiClientObject->m_sspiImpl->UtForceCompleteAuth(info[0]->BooleanValue());
+    }
+
+    // This is a shared pointer because we pass this to
+    // SspiClientGetNextBlobWorker, whose life time is independently managed
+    // by AsynQueueWorker.
+    std::shared_ptr<SspiImpl> m_sspiImpl;
 
     static Nan::Persistent<v8::Function> s_constructor;
     static const char* c_className;
