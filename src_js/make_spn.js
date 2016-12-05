@@ -1,5 +1,5 @@
-function makeSpn(serviceClassname, fdqn, instanceNameOrPort, cb) {
-  return serviceClassname + '/' + fdqn + ':' + instanceNameOrPort;
+function makeSpn(serviceClassname, fqdn, instanceNameOrPort, cb) {
+  return serviceClassname + '/' + fqdn + ':' + instanceNameOrPort;
 }
 
 module.exports.makeSpn = makeSpn;
