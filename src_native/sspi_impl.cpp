@@ -165,11 +165,22 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
     char* spnCopy = static_cast<char*>(_alloca(spnCopySize));
     strncpy(spnCopy, m_spn.c_str(), spnCopySize);
 
-    SecBuffer inSecBuffers;
+    SecBuffer inSecBuffer;
+    inSecBuffer.BufferType = SECBUFFER_TOKEN;
+    inSecBuffer.cbBuffer = inBlobLength;
+    inSecBuffer.pvBuffer = const_cast<char*>(inBlob);
+
     SecBufferDesc inSecBufferDesc;
     inSecBufferDesc.ulVersion = SECBUFFER_VERSION;
-    inSecBufferDesc.cBuffers = 0;
-    inSecBufferDesc.pBuffers = &inSecBuffers;
+    inSecBufferDesc.pBuffers = &inSecBuffer;
+
+    if (m_hasCtxtHandle) {
+        inSecBufferDesc.cBuffers = 1;
+    }
+    else
+    {
+        inSecBufferDesc.cBuffers = 0;
+    }
 
     SecBuffer outSecBuffer;
     outSecBuffer.BufferType = SECBUFFER_TOKEN;
@@ -211,6 +222,8 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
 
         return securityStatus;
     }
+
+    m_hasCtxtHandle = true;
 
     *isDone = securityStatus != SEC_I_CONTINUE_NEEDED
         && securityStatus != SEC_I_COMPLETE_AND_CONTINUE;
