@@ -35,6 +35,7 @@ class SspiClient {
       const ntlmLowerCase = 'ntlm';
 
       const securityPackageLowerCase = securityPackage.toLowerCase();
+
       if (securityPackageLowerCase !== negotiateLowerCase
         && securityPackageLowerCase !== kerberosLowerCase
         && securityPackageLowerCase !== ntlmLowerCase) {
@@ -44,7 +45,13 @@ class SspiClient {
       }
     }
 
-    this.sspiClientImpl = new sspiClientNative.SspiClient(spn);
+    if (securityPackage) {
+      this.sspiClientImpl = new sspiClientNative.SspiClient(spn, securityPackage);
+      this.securityPackage = securityPackage;
+    } else {
+      this.sspiClientImpl = new sspiClientNative.SspiClient(spn);
+    }
+
     this.getNextBlobInProgress = false;
   }
 

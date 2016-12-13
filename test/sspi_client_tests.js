@@ -19,7 +19,7 @@ class MaybeDone {
   }
 }
 
-exports.sspiPackageNotSetBeforeInitialization = function (test) {
+exports.sspiDefaultPackageNotSetBeforeInitialization = function (test) {
   const expectedErrorMessage = 'Initialization not completed.';
 
   try {
@@ -30,7 +30,18 @@ exports.sspiPackageNotSetBeforeInitialization = function (test) {
   }
 }
 
-exports.constructorSuccess = function(test) {
+exports.sspiSupportedPackagesNotSetBeforeInitialization = function (test) {
+  const expectedErrorMessage = 'Initialization not completed.';
+
+  try {
+    SspiClientApi.getSupportedSspiPackageNames();
+  } catch (err) {
+    test.done();
+    test.strictEqual(err.message, expectedErrorMessage);
+  }
+}
+
+exports.constructorSuccess = function (test) {
   const sspiClient = new SspiClientApi.SspiClient("fake_spn");
   test.ok(sspiClient);
   test.done();
@@ -47,7 +58,18 @@ exports.constructorEmptyArgs = function(test) {
   }
 }
 
-exports.constructorInvalidArgType = function(test) {
+exports.constructorTooManyArgs = function (test) {
+  const expectedErrorMessage = 'Invalid number of arguments.';
+
+  try {
+    const sspiClient = new SspiClientApi.SspiClient('fake_spn', 'fake_securitypackage', 'spuriousarg');
+  } catch (err) {
+    test.strictEqual(err.message, expectedErrorMessage);
+    test.done();
+  }
+}
+
+exports.constructorInvalidArgTypeSpn = function(test) {
   const expectedErrorMessage = 'Invalid argument type for \'spn\'.';
 
   try {
@@ -59,12 +81,37 @@ exports.constructorInvalidArgType = function(test) {
   }
 }
 
-exports.constructorEmptyStringArg = function(test) {
+exports.constructorInvalidArgTypeSecurityPackage = function (test) {
+  const expectedErrorMessage = 'Invalid argument type for \'securityPackage\'.';
+
+  try {
+    const numberTypeArg = 75;
+    const sspiClient = new SspiClientApi.SspiClient('fake_spn', numberTypeArg);
+  } catch (err) {
+    test.strictEqual(err.message, expectedErrorMessage);
+    test.done();
+  }
+}
+
+exports.constructorEmptyStringSpn = function (test) {
   const expectedErrorMessage = 'Empty string argument for \'spn\'.';
 
   try {
     const emptyStringArg = '';
     const sspiClient = new SspiClientApi.SspiClient(emptyStringArg);
+  } catch (err) {
+    test.strictEqual(err.message, expectedErrorMessage);
+    test.done();
+  }
+}
+
+exports.constructorInvalidSecurityPackage = function (test) {
+  const expectedErrorMessage =
+    '\'securityPackage\' if specified must be one of \'negotiate\' or \'kerberos\' or \'ntlm\'.';
+
+  try {
+    const invalidSecurityPackage = 'invalid-security-package';
+    const sspiClient = new SspiClientApi.SspiClient('fake_spn', invalidSecurityPackage);
   } catch (err) {
     test.strictEqual(err.message, expectedErrorMessage);
     test.done();
