@@ -20,8 +20,14 @@ class MaybeDone {
 }
 
 exports.sspiPackageNotSetBeforeInitialization = function (test) {
-  test.strictEqual(SspiClientApi.getSspiPackageName(), 'SSPI package not initialized');
-  test.done();
+  const expectedErrorMessage = 'Initialization not completed.';
+
+  try {
+    SspiClientApi.getDefaultSspiPackageName();
+  } catch (err) {
+    test.done();
+    test.strictEqual(err.message, expectedErrorMessage);
+  }
 }
 
 exports.constructorSuccess = function(test) {
@@ -130,7 +136,7 @@ function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverRes
     test.strictEqual(errorCode, 0x80090304);
     test.strictEqual(errorString, 'Canned Response without input data.');
 
-    test.strictEqual(SspiClientApi.getSspiPackageName(), 'Negotiate');
+    test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
 
     maybeDone.done();
   });
@@ -177,7 +183,7 @@ exports.getNextBlobCannedResponseNonEmptyInBufImpl = function (test) {
     test.strictEqual(errorCode, 0x80090303);
     test.strictEqual(errorString, 'Canned Response with input data.');
 
-    test.strictEqual(SspiClientApi.getSspiPackageName(), 'Negotiate');
+    test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
 
     test.done();
   });

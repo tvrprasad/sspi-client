@@ -28,7 +28,7 @@ const clientSocket = net.connect(connectOpts);
 
 const onConnect = () => {
   console.log('Connected to server.');
-  getFdqn();
+  getFqdn();
 }
 
 const onError = (err) => {
@@ -71,7 +71,7 @@ clientSocket.on('connect', onConnect);
 clientSocket.on('error', onError);
 clientSocket.on('data', onData);
 
-const getFdqn = () => {
+const getFqdn = () => {
   Fqdn.getFqdn(host, (err, fqdn) => {
     if (err) {
       console.log(err);
@@ -115,7 +115,7 @@ const getNextBlob = () => {
           setTimeout(getNextBlob, 1);
         } else {
           console.log();
-          console.log('Authentication succeeded. Security package = ', SspiClientApi.getSspiPackageName());
+          console.log('Authentication succeeded. Security package = ', SspiClientApi.getDefaultSspiPackageName());
         }
       }
     });
