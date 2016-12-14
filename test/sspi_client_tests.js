@@ -34,7 +34,7 @@ exports.ensureInitializationNoCallback = function (test) {
   expectedErrorMessage = 'Initialization not completed.';
 
   try {
-    SspiClientApi.getSupportedSspiPackageNames();
+    SspiClientApi.getAvailableSspiPackageNames();
   } catch (err) {
     test.strictEqual(err.message, expectedErrorMessage);
   }
@@ -43,21 +43,30 @@ exports.ensureInitializationNoCallback = function (test) {
   test.done();
 }
 
-exports.ensureInitializationWithCallback = function (test) {
+function ensureInitializationWithCallbackImpl(test, maybeDone) {
   SspiClientApi.ensureInitialization((errorCode, errorString) => {
     test.strictEqual(errorCode, 0);
     test.strictEqual(errorString, '');
 
     test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
 
-    let availableSspiPackageNames = SspiClientApi.getSupportedSspiPackageNames();
+    let availableSspiPackageNames = SspiClientApi.getAvailableSspiPackageNames();
     test.strictEqual(availableSspiPackageNames.length, 3);
     test.strictEqual(availableSspiPackageNames[0], 'Negotiate');
     test.strictEqual(availableSspiPackageNames[1], 'Kerberos');
     test.strictEqual(availableSspiPackageNames[2], 'NTLM');
 
-    test.done();
+    maybeDone.done();
   });
+}
+
+exports.ensureInitializationWithCallback = function (test) {
+  const numRuns = 5;
+  const maybeDone = new MaybeDone(test, numRuns);
+
+  for (i = 0; i < numRuns; i++) {
+    ensureInitializationWithCallbackImpl(test, maybeDone);
+  }
 }
 
 exports.ensureInitializationTooManyArgs = function (test) {
@@ -245,7 +254,7 @@ function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverRes
 
     test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
 
-    let availableSspiPackageNames = SspiClientApi.getSupportedSspiPackageNames();
+    let availableSspiPackageNames = SspiClientApi.getAvailableSspiPackageNames();
     test.strictEqual(availableSspiPackageNames.length, 3);
     test.strictEqual(availableSspiPackageNames[0], 'Negotiate');
     test.strictEqual(availableSspiPackageNames[1], 'Kerberos');
@@ -260,7 +269,7 @@ function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverRes
 //  - client response coming back from native code to JavaScript correctly.
 exports.getNextBlobCannedResponseEmptyInBuf = function (test) {
   const numRuns = 7;
-  maybeDone = new MaybeDone(test, numRuns);
+  const maybeDone = new MaybeDone(test, numRuns);
 
   for (i = 0; i < numRuns - 2; i++) {
     getNextBlobCannedResponseEmptyInBufImpl(test, null, 0, maybeDone);
@@ -390,7 +399,7 @@ exports.getNextBlobInvalidServerResponseLengthArg = function (test) {
   ];
 
   const numRuns = invalidLengths.length;
-  maybeDone = new MaybeDone(test, numRuns);
+  const maybeDone = new MaybeDone(test, numRuns);
 
   const expectedErrorMessage = '\'serverResponseLength\' must be a non-negative integer.';
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');

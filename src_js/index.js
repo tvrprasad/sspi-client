@@ -10,7 +10,7 @@ let initializeSucceeded = false;
 let initializeErrorCode = 0;
 let initializeErrorString = '';
 
-let supportedSspiPackageNames = [ 'Initialization not completed.' ];
+let availableSspiPackageNames = [ 'Initialization not completed.' ];
 let defaultSspiPackageName = 'Initialization not completed.';
 
 // JavaScript wrapper class on top of the native binding that implements
@@ -151,12 +151,12 @@ function ensureInitialization(cb) {
     }
   } else {
     initializeInvoked = true;
-    sspiClientNative.initialize((supportedSspiPackages, defaultPackageIndex, errorCode, errorString) => {
+    sspiClientNative.initialize((availableSspiPackages, defaultPackageIndex, errorCode, errorString) => {
       initializeExecutionCompleted = true;
       if (errorCode === 0) {
         initializeSucceeded = true;
-        supportedSspiPackageNames = supportedSspiPackages;
-        defaultSspiPackageName = supportedSspiPackageNames[defaultPackageIndex];
+        availableSspiPackageNames = availableSspiPackages;
+        defaultSspiPackageName = availableSspiPackageNames[defaultPackageIndex];
       } else {
         initializeErrorCode = errorCode;
         initializeErrorString = errorString;
@@ -177,12 +177,12 @@ function getDefaultSspiPackageName() {
   return defaultSspiPackageName;
 }
 
-function getSupportedSspiPackageNames() {
+function getAvailableSspiPackageNames() {
   if (!initializeExecutionCompleted) {
     throw new Error('Initialization not completed.');
   }
 
-  return supportedSspiPackageNames;
+  return availableSspiPackageNames;
 }
 
 // Methods defined below this line are for unit testing only.
@@ -196,7 +196,7 @@ function disableNativeDebugLogging() {
 
 module.exports.SspiClient = SspiClient;
 module.exports.ensureInitialization = ensureInitialization;
-module.exports.getSupportedSspiPackageNames = getSupportedSspiPackageNames;
+module.exports.getAvailableSspiPackageNames = getAvailableSspiPackageNames;
 module.exports.getDefaultSspiPackageName = getDefaultSspiPackageName;
 module.exports.enableNativeDebugLogging = enableNativeDebugLogging;
 module.exports.disableNativeDebugLogging = disableNativeDebugLogging;
