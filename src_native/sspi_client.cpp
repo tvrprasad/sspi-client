@@ -277,7 +277,7 @@ private:
 
             // This will trigger the New method and that invocation will go through
             // the IsConstructorCall() true code path.
-            info.GetReturnValue().Set(constructor->NewInstance(info.Length(), argv));
+            info.GetReturnValue().Set(Nan::NewInstance(constructor, info.Length(), argv).ToLocalChecked());
         }
     }
 
