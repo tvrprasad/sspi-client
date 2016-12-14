@@ -10,7 +10,8 @@ let initializeSucceeded = false;
 let initializeErrorCode = 0;
 let initializeErrorString = '';
 
-let sspiPackageName = 'SSPI package not initialized';
+let availableSspiPackageNames = [ 'Initialization not completed.' ];
+let defaultSspiPackageName = 'Initialization not completed.';
 
 // JavaScript wrapper class on top of the native binding that implements
 // wrappers to invoke Windows SSPI calls. The native bindings will have the
@@ -19,16 +20,38 @@ let sspiPackageName = 'SSPI package not initialized';
 class SspiClient {
   // Creates an instance of the object in native code, which will invoke
   // Windows SSPI calls.
-  constructor(spn) {
-    if (arguments.length !== 1) {
+  constructor(spn, securityPackage) {
+    if (arguments.length !== 1 && arguments.length != 2) {
       throw new Error('Invalid number of arguments.');
     } else if (typeof (spn) !== 'string') {
       throw new Error('Invalid argument type for \'spn\'.');
     } else if (spn === '') {
       throw Error('Empty string argument for \'spn\'.');
+    } else if (securityPackage !== undefined && typeof (securityPackage) !== 'string') {
+      throw new Error('Invalid argument type for \'securityPackage\'.');
+    } else if (securityPackage !== undefined) {
+      const negotiateLowerCase = 'negotiate';
+      const kerberosLowerCase = 'kerberos';
+      const ntlmLowerCase = 'ntlm';
+
+      const securityPackageLowerCase = securityPackage.toLowerCase();
+
+      if (securityPackageLowerCase !== negotiateLowerCase
+        && securityPackageLowerCase !== kerberosLowerCase
+        && securityPackageLowerCase !== ntlmLowerCase) {
+        throw new Error('\'securityPackage\' if specified must be one of \''
+          + negotiateLowerCase + '\' or \'' + kerberosLowerCase + '\' or \''
+          + ntlmLowerCase + '\'.');
+      }
     }
 
-    this.sspiClientImpl = new sspiClientNative.SspiClient(spn);
+    if (securityPackage) {
+      this.sspiClientImpl = new sspiClientNative.SspiClient(spn, securityPackage);
+      this.securityPackage = securityPackage;
+    } else {
+      this.sspiClientImpl = new sspiClientNative.SspiClient(spn);
+    }
+
     this.getNextBlobInProgress = false;
   }
 
@@ -63,19 +86,7 @@ class SspiClient {
     this.getNextBlobInProgress = true;
 
     // Invoke initialization code if it's not already invoked.
-    if (!initializeInvoked) {
-      initializeInvoked = true;
-      sspiClientNative.initialize((sspiPackage, errorCode, errorString) => {
-        initializeExecutionCompleted = true;
-        if (errorCode === 0) {
-          initializeSucceeded = true;
-          sspiPackageName = sspiPackage;
-        } else {
-          initializeErrorCode = errorCode;
-          initializeErrorString = errorString;
-        }
-      });
-    }
+    ensureInitialization();
 
     // Inside the function defined below, 'this' will be the global context.
     const that = this;
@@ -119,8 +130,59 @@ class SspiClient {
   }
 }
 
-function getSspiPackageName() {
-  return sspiPackageName;
+function invokeInitializationDoneCallback(cb) {
+  if (initializeExecutionCompleted) {
+    cb(initializeErrorCode, initializeErrorString);
+  } else {
+    setImmediate(invokeInitializationDoneCallback, cb);
+  }
+}
+
+function ensureInitialization(cb) {
+  if (arguments.length > 1) {
+    throw new Error('Invalid number of arguments.');
+  } else if (cb !== undefined && typeof (cb) !== 'function') {
+    throw new Error('Invalid argument type for \'cb\'.');
+  }
+
+  if (initializeInvoked) {
+    if (cb) {
+      setImmediate(invokeInitializationDoneCallback, cb);
+    }
+  } else {
+    initializeInvoked = true;
+    sspiClientNative.initialize((availableSspiPackages, defaultPackageIndex, errorCode, errorString) => {
+      initializeExecutionCompleted = true;
+      if (errorCode === 0) {
+        initializeSucceeded = true;
+        availableSspiPackageNames = availableSspiPackages;
+        defaultSspiPackageName = availableSspiPackageNames[defaultPackageIndex];
+      } else {
+        initializeErrorCode = errorCode;
+        initializeErrorString = errorString;
+      }
+
+      if (cb) {
+        cb(initializeErrorCode, initializeErrorString);
+      }
+    });
+  }
+}
+
+function getDefaultSspiPackageName() {
+  if (!initializeExecutionCompleted) {
+    throw new Error('Initialization not completed.');
+  }
+
+  return defaultSspiPackageName;
+}
+
+function getAvailableSspiPackageNames() {
+  if (!initializeExecutionCompleted) {
+    throw new Error('Initialization not completed.');
+  }
+
+  return availableSspiPackageNames;
 }
 
 // Methods defined below this line are for unit testing only.
@@ -133,6 +195,8 @@ function disableNativeDebugLogging() {
 }
 
 module.exports.SspiClient = SspiClient;
+module.exports.ensureInitialization = ensureInitialization;
+module.exports.getAvailableSspiPackageNames = getAvailableSspiPackageNames;
+module.exports.getDefaultSspiPackageName = getDefaultSspiPackageName;
 module.exports.enableNativeDebugLogging = enableNativeDebugLogging;
 module.exports.disableNativeDebugLogging = disableNativeDebugLogging;
-module.exports.getSspiPackageName = getSspiPackageName;

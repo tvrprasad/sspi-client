@@ -21,11 +21,15 @@
 class SspiClientInitializeWorker : public Nan::AsyncWorker
 {
 public:
-    SspiClientInitializeWorker(Nan::Callback* callback)
-        : Nan::AsyncWorker(callback)
+    SspiClientInitializeWorker(Nan::Callback* callback) :
+        Nan::AsyncWorker(callback),
+        m_availablePackages(),
+        m_defaultPackageIndex(-1)
     {
         DebugLog("%ul: Main event loop: SspiClientInitializeWorker::SspiClientInitializeWorker.\n",
             GetCurrentThreadId());
+
+        m_errorString[0] = '\0';
     }
 
     // This function executes inside the worker-thread. No V8 data-structures
@@ -38,8 +42,8 @@ public:
             GetCurrentThreadId());
 
         m_securityStatus = SspiImpl::Initialize(
-            m_sspiPackageName,
-            c_sspiPackageNameBufferSize,
+            &m_availablePackages,
+            &m_defaultPackageIndex,
             m_errorString,
             c_errorStringBufferSize);
     }
@@ -51,14 +55,22 @@ public:
         DebugLog("%ul: Main event loop: SspiClientInitializeWorker::HandleOKCallback.\n",
             GetCurrentThreadId());
 
+        v8::Local<v8::Array> availablePackages =
+            Nan::New<v8::Array>(static_cast<int>(m_availablePackages.size()));
+        for (unsigned int i = 0; i < m_availablePackages.size(); i++)
+        {
+            Nan::Set(availablePackages, i, Nan::New<v8::String>(m_availablePackages[i].c_str()).ToLocalChecked());
+        }
+
         v8::Local<v8::Value> argv[] =
         {
-            Nan::New<v8::String>(m_sspiPackageName).ToLocalChecked(),
+            availablePackages,
+            Nan::New<v8::Uint32>(m_defaultPackageIndex),
             Nan::New<v8::Uint32>(m_securityStatus),
             Nan::New<v8::String>(m_errorString).ToLocalChecked()
         };
 
-        callback->Call(3, argv);
+        callback->Call(4, argv);
     }
 
     ~SspiClientInitializeWorker()
@@ -77,8 +89,8 @@ private:
     static const int c_errorStringBufferSize = 256;
     char m_errorString[c_errorStringBufferSize];
 
-    static const int c_sspiPackageNameBufferSize = 32;
-    char m_sspiPackageName[c_sspiPackageNameBufferSize];
+    std::vector<std::string> m_availablePackages;
+    int m_defaultPackageIndex;
 };
 
 // Worker class to get the next client response asynchronously.
@@ -91,8 +103,13 @@ public:
         const char* inBlob,
         int inBlobLength)
         : Nan::AsyncWorker(callback),
-          m_sspiImpl(sspiImpl),
-          m_inBlobLength(inBlobLength)
+        m_securityStatus(-1),
+        m_sspiImpl(sspiImpl),
+        m_inBlob(nullptr),
+        m_inBlobLength(inBlobLength),
+        m_outBlob(nullptr),
+        m_outBlobLength(0),
+        m_isDone(false)
     {
         DebugLog("%ul: Main event loop: SspiClientGetNextBlobWorker::SspiClientInitializeWorker.\n",
             GetCurrentThreadId());
@@ -102,6 +119,8 @@ public:
             m_inBlob.reset(new char[m_inBlobLength]);
             memcpy(m_inBlob.get(), inBlob, m_inBlobLength);
         }
+
+        m_errorString[0] = '\0';
     }
 
     // This function executes inside the worker-thread. No V8 data-structures
@@ -218,7 +237,8 @@ private:
     SspiClientObject(const SspiClientGetNextBlobWorker&);
     SspiClientObject& operator=(const SspiClientGetNextBlobWorker&);
 
-    explicit SspiClientObject(const char* spn) : m_sspiImpl(new SspiImpl(spn))
+    SspiClientObject(const char* spn, const char* securityPackage)
+        : m_sspiImpl(new SspiImpl(spn, securityPackage))
     {
         DebugLog("%ul: Main event loop: SspiClientObject::SspiClientObject.\n", GetCurrentThreadId());
     }
@@ -235,7 +255,15 @@ private:
             // Constructor invoked with new SspiClient().
             DebugLog("%ul: Main event loop: SspiClientObject::New IsConstructorCall.\n", GetCurrentThreadId());
             Nan::Utf8String spn(info[0]);
-            SspiClientObject* sspiClientObject = new SspiClientObject(*spn);
+
+            const char* securityPackage = nullptr;
+            if (info.Length() == 2)
+            {
+                Nan::Utf8String securityPackageArg(info[1]);
+                securityPackage = *securityPackageArg;
+            }
+
+            SspiClientObject* sspiClientObject = new SspiClientObject(*spn, securityPackage);
             sspiClientObject->Wrap(info.This());
             info.GetReturnValue().Set(info.This());
         }
@@ -257,7 +285,7 @@ private:
     {
         DebugLog("%ul: Main event loop: SspiClientObject::GetNextBlob.\n", GetCurrentThreadId());
 
-        int inBlobLength = info[1]->IntegerValue();
+        int inBlobLength = static_cast<int>(info[1]->IntegerValue());
         char* inBlob = nullptr;
         if (inBlobLength > 0)
         {

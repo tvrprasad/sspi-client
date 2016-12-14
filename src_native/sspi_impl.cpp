@@ -16,36 +16,39 @@ char SspiImpl::s_supportedPackages[s_numSupportedPackages][SspiImpl::c_maxPackag
     "NTLM"
 };
 
-// This is the index of the security package to use if none specified by the app.
-int SspiImpl::s_defaultPackageIndex = SspiImpl::c_invalidPackageIndex;
+// This is the default security package to use if none specified by the app.
+const char* SspiImpl::s_defaultPackage = nullptr;
 
-// Maximum token size for the default package selected.
-int SspiImpl::s_defaultPackageMaxTokenSize = -1;
+// Maximum token size across all packages.
+int SspiImpl::s_packageMaxTokenSize = -1;
 
-// For each package, indicates if the package is supported on the client platform.
-bool SspiImpl::s_packageSupported[s_numSupportedPackages] = { false, false, false };
-
-SspiImpl::SspiImpl(const char* spn) :
+SspiImpl::SspiImpl(const char* spn, const char* securityPackage) :
     m_hasCredHandle(false),
     m_hasCtxtHandle(false),
     m_spn(spn),
-    m_utEnableCannedResponse(false)
+    m_securityPackage(),
+    m_utEnableCannedResponse(false),
+    m_utForceCompleteAuth(false)
 {
     DebugLog("%d: Main event loop: SspiImpl::SspiImpl: spn=%s", GetCurrentThreadId(), spn);
     SecInvalidateHandle(&m_credHandle);
+
+    if (securityPackage != nullptr)
+    {
+        m_securityPackage.assign(securityPackage);
+    }
 }
 
 // static
 SECURITY_STATUS SspiImpl::Initialize(
-    char* sspiPackageName,
-    int sspiPackageNameBufferSize,
+    std::vector<std::string>* availablePackages,
+    int* defaultPackageIndex,
     char* errorString,
     int errorStringBufferSize)
 {
     DebugLog("%d: Worker thread: SspiImpl::Initialize.\n", GetCurrentThreadId());
 
     errorString[0] = '\0';
-    sspiPackageName[0] = '\0';
 
     unsigned long numPackages;
     PSecPkgInfoA psecPkgInfo;
@@ -56,23 +59,30 @@ SECURITY_STATUS SspiImpl::Initialize(
         snprintf(
             errorString,
             errorStringBufferSize,
-            "EnumerateSecurityPackagesA failed with error code: %ld.",
+            "EnumerateSecurityPackagesA failed with error code: 0x%X.",
             securityStatus);
 
         return securityStatus;
     }
 
-    for (unsigned long i = 0; i < s_numSupportedPackages; i++)
+    for (unsigned long supportedPackagesIndex = 0; supportedPackagesIndex < s_numSupportedPackages; supportedPackagesIndex++)
     {
-        if (_strcmpi(s_supportedPackages[i], psecPkgInfo[i].Name) == 0)
+        for (unsigned long packagesIndex = 0; packagesIndex < numPackages; packagesIndex++)
         {
-            if (s_defaultPackageIndex == c_invalidPackageIndex)
+            if (_strcmpi(s_supportedPackages[supportedPackagesIndex], psecPkgInfo[packagesIndex].Name) == 0)
             {
-                s_defaultPackageIndex = i;
-                s_defaultPackageMaxTokenSize = psecPkgInfo[i].cbMaxToken;
-            }
+                availablePackages->push_back(psecPkgInfo[packagesIndex].Name);
+                if (s_packageMaxTokenSize < static_cast<int>(psecPkgInfo[packagesIndex].cbMaxToken))
+                {
+                    s_packageMaxTokenSize = psecPkgInfo[packagesIndex].cbMaxToken;
+                }
 
-            s_packageSupported[i] = true;
+                if (s_defaultPackage == nullptr)
+                {
+                    s_defaultPackage = s_supportedPackages[supportedPackagesIndex];
+                    *defaultPackageIndex = static_cast<int>(availablePackages->size() - 1);
+                }
+            }
         }
     }
 
@@ -82,13 +92,13 @@ SECURITY_STATUS SspiImpl::Initialize(
         snprintf(
             errorString,
             errorStringBufferSize,
-            "FreeContextBuffer call failed with error code: %ld.",
+            "FreeContextBuffer call failed with error code: 0x%X.",
             securityStatus);
 
         return securityStatus;
     }
 
-    if (s_defaultPackageIndex == -1)
+    if (s_defaultPackage == nullptr)
     {
         snprintf(
             errorString,
@@ -101,7 +111,6 @@ SECURITY_STATUS SspiImpl::Initialize(
         return securityStatus;
     }
 
-    strncpy(sspiPackageName, s_supportedPackages[s_defaultPackageIndex], sspiPackageNameBufferSize);
     return securityStatus;
 }
 
@@ -128,7 +137,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
             errorStringBufferSize);
     }
 
-    *outBlob = new char[s_defaultPackageMaxTokenSize];
+    *outBlob = new char[s_packageMaxTokenSize];
     errorString[0] = '\0';
 
     TimeStamp timeExpiry;
@@ -136,9 +145,19 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
 
     if (!m_hasCredHandle)
     {
+        const char* securityPackage;
+        if (m_securityPackage.empty())
+        {
+            securityPackage = s_defaultPackage;
+        }
+        else
+        {
+            securityPackage = m_securityPackage.c_str();
+        }
+
         securityStatus = AcquireCredentialsHandleA(
             nullptr,    // Principal - logged in user.
-            s_supportedPackages[s_defaultPackageIndex],     // Security package to use.
+            const_cast<char*>(securityPackage),     // Security package to use.
             SECPKG_CRED_OUTBOUND,   // Client credential token sent to server.
             nullptr,    // Locally unique user identifier.
             nullptr,    // Auth data - use default credentials.
@@ -152,7 +171,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
             snprintf(
                 errorString,
                 errorStringBufferSize,
-                "AcquireCredentialsHandleA failed with error code: %ld.",
+                "AcquireCredentialsHandleA failed with error code: 0x%X.",
                 securityStatus);
 
             return securityStatus;
@@ -185,7 +204,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
     SecBuffer outSecBuffer;
     outSecBuffer.BufferType = SECBUFFER_TOKEN;
     outSecBuffer.pvBuffer = *outBlob;
-    outSecBuffer.cbBuffer = s_defaultPackageMaxTokenSize;
+    outSecBuffer.cbBuffer = s_packageMaxTokenSize;
 
     SecBufferDesc outSecBufferDesc;
     outSecBufferDesc.ulVersion = SECBUFFER_VERSION;
@@ -217,7 +236,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
         snprintf(
             errorString,
             errorStringBufferSize,
-            "InitializeSecurityContextA failed with error code: %ld.",
+            "InitializeSecurityContextA failed with error code: 0x%X.",
             securityStatus);
 
         return securityStatus;
@@ -238,7 +257,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
             snprintf(
                 errorString,
                 errorStringBufferSize,
-                "CompleteAuthToken failed with error code: %ld.",
+                "CompleteAuthToken failed with error code: 0x%X.",
                 securityStatus);
 
             return securityStatus;

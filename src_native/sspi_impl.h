@@ -5,6 +5,7 @@
 #include <Windows.h>
 #include <Sspi.h>
 #include <string>
+#include <vector>
 
 // This class has the core SSPI client implementation. This has no dependencies on
 // V8 or libuv. All code in this class runs in the worker threads. It's upto the
@@ -12,11 +13,11 @@
 class SspiImpl
 {
 public:
-    explicit SspiImpl(const char*);
+    SspiImpl(const char* spn, const char* securityPackage);
 
     static SECURITY_STATUS Initialize(
-        char* sspiPackageName,
-        int sspiPackageNameBufferSize,
+        std::vector<std::string>* availablePackages,
+        int* defaultPackageIndex,
         char* errorString,
         int errorStringBufferSize);
 
@@ -48,11 +49,9 @@ private:
     static const int c_maxPackageNameLength = 32;
     static const int s_numSupportedPackages = 3;
     static char s_supportedPackages[s_numSupportedPackages][c_maxPackageNameLength];
-    static bool s_packageSupported[s_numSupportedPackages];
 
-    static const int c_invalidPackageIndex = -1;
-    static int s_defaultPackageIndex;
-    static int s_defaultPackageMaxTokenSize;
+    static const char* s_defaultPackage;
+    static int s_packageMaxTokenSize;
 
     CredHandle m_credHandle;
     bool m_hasCredHandle;
@@ -61,6 +60,7 @@ private:
     bool m_hasCtxtHandle;
 
     std::string m_spn;
+    std::string m_securityPackage;
 
     // Everything below is for unit testing purposes only.
     SECURITY_STATUS UtSetCannedResponse(
