@@ -19,25 +19,67 @@ class MaybeDone {
   }
 }
 
-exports.sspiDefaultPackageNotSetBeforeInitialization = function (test) {
-  const expectedErrorMessage = 'Initialization not completed.';
+// This test relies on being the first test to run.
+exports.ensureInitializationNoCallback = function (test) {
+  SspiClientApi.ensureInitialization();
+
+  let expectedErrorMessage = 'Initialization not completed.';
 
   try {
     SspiClientApi.getDefaultSspiPackageName();
   } catch (err) {
-    test.done();
     test.strictEqual(err.message, expectedErrorMessage);
   }
-}
 
-exports.sspiSupportedPackagesNotSetBeforeInitialization = function (test) {
-  const expectedErrorMessage = 'Initialization not completed.';
+  expectedErrorMessage = 'Initialization not completed.';
 
   try {
     SspiClientApi.getSupportedSspiPackageNames();
   } catch (err) {
-    test.done();
     test.strictEqual(err.message, expectedErrorMessage);
+  }
+
+  test.expect(2);
+  test.done();
+}
+
+exports.ensureInitializationWithCallback = function (test) {
+  SspiClientApi.ensureInitialization((errorCode, errorString) => {
+    test.strictEqual(errorCode, 0);
+    test.strictEqual(errorString, '');
+
+    test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
+
+    let availableSspiPackageNames = SspiClientApi.getSupportedSspiPackageNames();
+    test.strictEqual(availableSspiPackageNames.length, 3);
+    test.strictEqual(availableSspiPackageNames[0], 'Negotiate');
+    test.strictEqual(availableSspiPackageNames[1], 'Kerberos');
+    test.strictEqual(availableSspiPackageNames[2], 'NTLM');
+
+    test.done();
+  });
+}
+
+exports.ensureInitializationTooManyArgs = function (test) {
+  const expectedErrorMessage = 'Invalid number of arguments.';
+
+  try {
+    SspiClientApi.ensureInitialization('arg1', 'arg2');
+  } catch (err) {
+    test.strictEqual(err.message, expectedErrorMessage);
+    test.done();
+  }
+}
+
+exports.ensureInitializationInvalidArgTypeCb = function (test) {
+  const expectedErrorMessage = 'Invalid argument type for \'cb\'.';
+
+  try {
+    const numberTypeArg = 75;
+    SspiClientApi.ensureInitialization(numberTypeArg);
+  } catch (err) {
+    test.strictEqual(err.message, expectedErrorMessage);
+    test.done();
   }
 }
 
@@ -161,6 +203,24 @@ exports.getNextBlobBasic = function (test) {
   getNextBlobBasicImpl(test, sspiClient);
 }
 
+exports.getNextBlobBasicNegotiate = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn', 'negotiate');
+  sspiClient.utEnableForceCompleteAuth();
+  getNextBlobBasicImpl(test, sspiClient);
+}
+
+exports.getNextBlobBasicKerberos = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn', 'negotiate');
+  sspiClient.utEnableForceCompleteAuth();
+  getNextBlobBasicImpl(test, sspiClient);
+}
+
+exports.getNextBlobBasicNtlm = function (test) {
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn', 'negotiate');
+  sspiClient.utEnableForceCompleteAuth();
+  getNextBlobBasicImpl(test, sspiClient);
+}
+
 exports.getNextBlobBasicForceCompleteAuth = function (test) {
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
   sspiClient.utEnableForceCompleteAuth();
@@ -184,6 +244,12 @@ function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverRes
     test.strictEqual(errorString, 'Canned Response without input data.');
 
     test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
+
+    let availableSspiPackageNames = SspiClientApi.getSupportedSspiPackageNames();
+    test.strictEqual(availableSspiPackageNames.length, 3);
+    test.strictEqual(availableSspiPackageNames[0], 'Negotiate');
+    test.strictEqual(availableSspiPackageNames[1], 'Kerberos');
+    test.strictEqual(availableSspiPackageNames[2], 'NTLM');
 
     maybeDone.done();
   });
@@ -226,7 +292,7 @@ exports.getNextBlobCannedResponseNonEmptyInBufImpl = function (test) {
       test.strictEqual(clientResponse[i], serverResponse[i]);
     }
 
-    test.strictEqual(false, isDone);
+    test.strictEqual(isDone, false);
     test.strictEqual(errorCode, 0x80090303);
     test.strictEqual(errorString, 'Canned Response with input data.');
 

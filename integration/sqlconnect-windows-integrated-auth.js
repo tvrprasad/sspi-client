@@ -2,11 +2,8 @@ const Connection = require('../../../src/tedious/src/tedious').Connection;
 var Request = require('../../../src/tedious/src/tedious').Request;
 
 const config = {
-  userName: 'venktam',
   domain: 'REDMOND',
-  securityPackage: 'negotiate',
-  server: 'prasad-asus',
-  options: { encrypt: false, database: 'master' }
+  options: { database: 'master' }
 };
 
 let testConfigs = [

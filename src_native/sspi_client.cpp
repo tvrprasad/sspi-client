@@ -103,7 +103,7 @@ public:
         const char* inBlob,
         int inBlobLength)
         : Nan::AsyncWorker(callback),
-        m_securityStatus(SEC_E_OUT_OF_SEQUENCE),
+        m_securityStatus(-1),
         m_sspiImpl(sspiImpl),
         m_inBlob(nullptr),
         m_inBlobLength(inBlobLength),
