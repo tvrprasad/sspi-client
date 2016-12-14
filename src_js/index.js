@@ -24,11 +24,11 @@ class SspiClient {
     if (arguments.length !== 1 && arguments.length != 2) {
       throw new Error('Invalid number of arguments.');
     } else if (typeof (spn) !== 'string') {
-      throw new Error('Invalid argument type for \'spn\'.');
+      throw new TypeError('Invalid argument type for \'spn\'.');
     } else if (spn === '') {
-      throw Error('Empty string argument for \'spn\'.');
+      throw new RangeError('Empty string argument for \'spn\'.');
     } else if (securityPackage !== undefined && typeof (securityPackage) !== 'string') {
-      throw new Error('Invalid argument type for \'securityPackage\'.');
+      throw new TypeError('Invalid argument type for \'securityPackage\'.');
     } else if (securityPackage !== undefined) {
       const negotiateLowerCase = 'negotiate';
       const kerberosLowerCase = 'kerberos';
@@ -39,7 +39,7 @@ class SspiClient {
       if (securityPackageLowerCase !== negotiateLowerCase
         && securityPackageLowerCase !== kerberosLowerCase
         && securityPackageLowerCase !== ntlmLowerCase) {
-        throw new Error('\'securityPackage\' if specified must be one of \''
+        throw new RangeError('\'securityPackage\' if specified must be one of \''
           + negotiateLowerCase + '\' or \'' + kerberosLowerCase + '\' or \''
           + ntlmLowerCase + '\'.');
       }
@@ -76,9 +76,9 @@ class SspiClient {
       || serverResponseLength < 0) {
       throw new Error('\'serverResponseLength\' must be a non-negative integer.');
     } else if (serverResponseLength > 0 && !(serverResponse instanceof Buffer)) {
-      throw new Error('Invalid argument type for \'serverResponse\'.');
+      throw new TypeError('Invalid argument type for \'serverResponse\'.');
     } else if (typeof (cb) !== 'function') {
-      throw new Error('Invalid argument type for \'cb\'.');
+      throw new TypeError('Invalid argument type for \'cb\'.');
     } else if (this.getNextBlobInProgress) {
       throw new Error('Single invocation of getNextBlob per instance of SspiClient may be in flight.');
     }
@@ -142,7 +142,7 @@ function ensureInitialization(cb) {
   if (arguments.length > 1) {
     throw new Error('Invalid number of arguments.');
   } else if (cb !== undefined && typeof (cb) !== 'function') {
-    throw new Error('Invalid argument type for \'cb\'.');
+    throw new TypeError('Invalid argument type for \'cb\'.');
   }
 
   if (initializeInvoked) {
