@@ -88,28 +88,25 @@ class SspiClient {
     // Invoke initialization code if it's not already invoked.
     ensureInitialization();
 
-    // Inside the function defined below, 'this' will be the global context.
-    const that = this;
-
     // Wait for initialization to complete. If initialization fails, invoke
     // callback with error information. Else, invoke native implementation.
-    const invokeGetNextBlob = function () {
+    const invokeGetNextBlob = function (sspiClient) {
       if (!initializeExecutionCompleted) {
         // You cannot user process.nextTick() here as it will block all
         // I/O which means initialization in native code will never get
         // a chance to run and the process will just hang.
-        setImmediate(invokeGetNextBlob);
+        setImmediate(invokeGetNextBlob, sspiClient);
       } else if (!initializeSucceeded) {
         cb(null, null, initializeErrorCode, initializeErrorString);
       } else {
-        that.sspiClientImpl.getNextBlob(serverResponse, serverResponseLength, function () {
-          that.getNextBlobInProgress = false;
+        sspiClient.sspiClientImpl.getNextBlob(serverResponse, serverResponseLength, function () {
+          sspiClient.getNextBlobInProgress = false;
           cb.apply(null, arguments);
         });
       }
     }
 
-    invokeGetNextBlob();
+    invokeGetNextBlob(this);
   }
 
   // Class methods below are for unit testing only.

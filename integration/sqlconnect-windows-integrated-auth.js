@@ -32,6 +32,19 @@ const sqlQuery = 'SELECT * FROM dbo.MSreplication_options';
 
 let currentTestIndex = 0;
 
+process.on('exit', () => {
+  let resultStr = '#### ';
+  if (currentTestIndex == testConfigs.length) {
+    resultStr += 'SUCCESS: ';
+  } else {
+    resultStr += 'FAILURE: ';
+  }
+
+  console.log('####################################################');
+  console.log(resultStr, currentTestIndex, ' out of ', testConfigs.length, ' tests succeeded. ####');
+  console.log('####################################################');
+});
+
 runNextTest();
 
 function runNextTest() {
