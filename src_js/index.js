@@ -23,13 +23,21 @@ class SspiClient {
   constructor(spn, securityPackage) {
     if (arguments.length !== 1 && arguments.length != 2) {
       throw new Error('Invalid number of arguments.');
-    } else if (typeof (spn) !== 'string') {
+    }
+
+    if (typeof (spn) !== 'string') {
       throw new TypeError('Invalid argument type for \'spn\'.');
-    } else if (spn === '') {
+    }
+
+    if (spn === '') {
       throw new RangeError('Empty string argument for \'spn\'.');
-    } else if (securityPackage !== undefined && typeof (securityPackage) !== 'string') {
+    }
+
+    if (securityPackage !== undefined && typeof (securityPackage) !== 'string') {
       throw new TypeError('Invalid argument type for \'securityPackage\'.');
-    } else if (securityPackage !== undefined) {
+    }
+
+    if (securityPackage !== undefined) {
       const negotiateLowerCase = 'negotiate';
       const kerberosLowerCase = 'kerberos';
       const ntlmLowerCase = 'ntlm';
@@ -59,6 +67,7 @@ class SspiClient {
   // part of authentication negotiation.
   //
   // serverResponse - Buffer with SSPI response from the server.
+  // serverResponseBeginOffset - Offset within the buffer where the response begins.
   // serverResponseLength - Length of response within the buffer.
   //
   // Signature of cb is:
@@ -68,18 +77,43 @@ class SspiClient {
   //      errorCode - number representing an error code from Windows API.
   //                  0 is success, non-zer failure.
   //      errorString - string error details.
-  getNextBlob(serverResponse, serverResponseLength, cb) {
-    if (arguments.length !== 3) {
+  getNextBlob(serverResponse, serverResponseBeginOffset, serverResponseLength, cb) {
+    function isNonZeroInteger(val) {
+      return typeof (val) === 'number'
+          && Math.floor(val) === val
+          && val >= 0;
+    }
+
+    if (arguments.length !== 4) {
       throw new Error('Invalid number of arguments.');
-    } else if (typeof(serverResponseLength) !== 'number'
-      || Math.floor(serverResponseLength) !== serverResponseLength
-      || serverResponseLength < 0) {
+    }
+
+    if (!isNonZeroInteger(serverResponseLength)) {
       throw new Error('\'serverResponseLength\' must be a non-negative integer.');
-    } else if (serverResponseLength > 0 && !(serverResponse instanceof Buffer)) {
-      throw new TypeError('Invalid argument type for \'serverResponse\'.');
-    } else if (typeof (cb) !== 'function') {
+    }
+
+    if (serverResponseLength > 0) {
+      if (!(serverResponse instanceof Buffer)) {
+        throw new TypeError('Invalid argument type for \'serverResponse\'.');
+      }
+
+      if (!isNonZeroInteger(serverResponseBeginOffset)) {
+        throw new Error('\'serverResponseBeginOffset\' must be a non-negative integer.');
+      }
+
+      if (serverResponseLength > (serverResponse.length - serverResponseBeginOffset)) {
+        throw new RangeError('\'serverResponse\' buffer too small. '
+          + '\'serverResponse\' buffer size=' + serverResponse.length
+          + ', \'serverResponseBeginOffset\'=' + serverResponseBeginOffset
+          + ', \'serverResponseLength\'=' + serverResponseLength);
+      }
+    }
+
+    if (typeof (cb) !== 'function') {
       throw new TypeError('Invalid argument type for \'cb\'.');
-    } else if (this.getNextBlobInProgress) {
+    }
+
+    if (this.getNextBlobInProgress) {
       throw new Error('Single invocation of getNextBlob per instance of SspiClient may be in flight.');
     }
 
@@ -99,10 +133,12 @@ class SspiClient {
       } else if (!initializeSucceeded) {
         cb(null, null, initializeErrorCode, initializeErrorString);
       } else {
-        sspiClient.sspiClientImpl.getNextBlob(serverResponse, serverResponseLength, function () {
-          sspiClient.getNextBlobInProgress = false;
-          cb.apply(null, arguments);
-        });
+        sspiClient.sspiClientImpl.getNextBlob(serverResponse, serverResponseBeginOffset, serverResponseLength,
+          // Cannot use => function syntax here as that does not have the 'arguments'.
+          function() {
+            sspiClient.getNextBlobInProgress = false;
+            cb.apply(null, arguments);
+          });
       }
     }
 
@@ -138,7 +174,9 @@ function invokeInitializationDoneCallback(cb) {
 function ensureInitialization(cb) {
   if (arguments.length > 1) {
     throw new Error('Invalid number of arguments.');
-  } else if (cb !== undefined && typeof (cb) !== 'function') {
+  }
+
+  if (cb !== undefined && typeof (cb) !== 'function') {
     throw new TypeError('Invalid argument type for \'cb\'.');
   }
 
