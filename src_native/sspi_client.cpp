@@ -101,6 +101,7 @@ public:
         Nan::Callback* callback,
         const std::shared_ptr<SspiImpl>& sspiImpl,
         const char* inBlob,
+        int inBlobBeginOffset,
         int inBlobLength)
         : Nan::AsyncWorker(callback),
         m_securityStatus(-1),
@@ -117,7 +118,7 @@ public:
         if (m_inBlobLength)
         {
             m_inBlob.reset(new char[m_inBlobLength]);
-            memcpy(m_inBlob.get(), inBlob, m_inBlobLength);
+            memcpy(m_inBlob.get(), inBlob + inBlobBeginOffset, m_inBlobLength);
         }
 
         m_errorString[0] = '\0';
@@ -285,19 +286,22 @@ private:
     {
         DebugLog("%ul: Main event loop: SspiClientObject::GetNextBlob.\n", GetCurrentThreadId());
 
-        int inBlobLength = static_cast<int>(info[1]->IntegerValue());
+        int inBlobBeginOffset = static_cast<int>(info[1]->IntegerValue());
+        int inBlobLength = static_cast<int>(info[2]->IntegerValue());
+
         char* inBlob = nullptr;
         if (inBlobLength > 0)
         {
             inBlob = node::Buffer::Data(info[0]->ToObject());
         }
 
-        Nan::Callback* callback = new Nan::Callback(info[2].As<v8::Function>());
+        Nan::Callback* callback = new Nan::Callback(info[3].As<v8::Function>());
         SspiClientObject* sspiClientObject = Nan::ObjectWrap::Unwrap<SspiClientObject>(info.Holder());
         AsyncQueueWorker(new SspiClientGetNextBlobWorker(
             callback,
             sspiClientObject->m_sspiImpl,
             inBlob,
+            inBlobBeginOffset,
             inBlobLength));
     }
 

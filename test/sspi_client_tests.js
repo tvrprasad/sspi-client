@@ -64,7 +64,7 @@ exports.ensureInitializationWithCallback = function (test) {
   const numRuns = 5;
   const maybeDone = new MaybeDone(test, numRuns);
 
-  for (i = 0; i < numRuns; i++) {
+  for (let i = 0; i < numRuns; i++) {
     ensureInitializationWithCallbackImpl(test, maybeDone);
   }
 }
@@ -171,36 +171,38 @@ exports.constructorInvalidSecurityPackage = function (test) {
 
 function getNextBlobBasicImpl(test, sspiClient) {
   const serverResponse = null;
+  const serverResponseBeginOffset = 0;
   const serverResponseLength = 0;
 
-  sspiClient.getNextBlob(serverResponse, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
-    test.ok(clientResponse.length > 0);
-    test.strictEqual(isDone, false);
-    test.strictEqual(errorCode, 0);
-    test.strictEqual(errorString, '');
+  sspiClient.getNextBlob(serverResponse, serverResponseBeginOffset, serverResponseLength,
+    (clientResponse, isDone, errorCode, errorString) => {
+      test.ok(clientResponse.length > 0);
+      test.strictEqual(isDone, false);
+      test.strictEqual(errorCode, 0);
+      test.strictEqual(errorString, '');
 
-    let notAllZeros = false;
-    let notAllEqual = false;
-    let prevByte = clientResponse[0];
-    for (i = 0; i < clientResponse.length; i++) {
-      if (prevByte != clientResponse[i]) {
-        notAllEqual = true;
+      let notAllZeros = false;
+      let notAllEqual = false;
+      let prevByte = clientResponse[0];
+      for (let i = 0; i < clientResponse.length; i++) {
+        if (prevByte != clientResponse[i]) {
+          notAllEqual = true;
+        }
+
+        if (clientResponse[i] != 0) {
+          notAllZeros = true;
+        }
+
+        if (notAllZeros && notAllEqual) {
+          break;
+        }
       }
 
-      if (clientResponse[i] != 0) {
-        notAllZeros = true;
-      }
+      test.ok(notAllEqual);
+      test.ok(notAllZeros);
 
-      if (notAllZeros && notAllEqual) {
-        break;
-      }
-    }
-
-    test.ok(notAllEqual);
-    test.ok(notAllZeros);
-
-    test.done();
-  });
+      test.done();
+    });
 }
 
 // Basic test that goes through the motions of a first invocation of
@@ -236,32 +238,35 @@ exports.getNextBlobBasicForceCompleteAuth = function (test) {
   getNextBlobBasicImpl(test, sspiClient);
 }
 
-function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverResponseLength, maybeDone) {
+function getNextBlobCannedResponseEmptyInBufImpl(test, serverResponse, serverResponseBeginOffset, maybeDone) {
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
 
   // Set unit test mode to get a canned response corresponding to empty serverResponse.
   sspiClient.utEnableCannedResponse();
 
-  sspiClient.getNextBlob(serverResponse, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
-    test.strictEqual(clientResponse.length, 25);
-    for (i = 0; i < 25; i++) {
-      test.strictEqual(clientResponse[i], i);
-    }
+  const serverResponseLength = 0;
 
-    test.strictEqual(true, isDone);
-    test.strictEqual(errorCode, 0x80090304);
-    test.strictEqual(errorString, 'Canned Response without input data.');
+  sspiClient.getNextBlob(serverResponse, serverResponseBeginOffset, serverResponseLength,
+    (clientResponse, isDone, errorCode, errorString) => {
+      test.strictEqual(clientResponse.length, 25);
+      for (let i = 0; i < 25; i++) {
+        test.strictEqual(clientResponse[i], i);
+      }
 
-    test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
+      test.strictEqual(true, isDone);
+      test.strictEqual(errorCode, 0x80090304);
+      test.strictEqual(errorString, 'Canned Response without input data.');
 
-    let availableSspiPackageNames = SspiClientApi.getAvailableSspiPackageNames();
-    test.strictEqual(availableSspiPackageNames.length, 3);
-    test.strictEqual(availableSspiPackageNames[0], 'Negotiate');
-    test.strictEqual(availableSspiPackageNames[1], 'Kerberos');
-    test.strictEqual(availableSspiPackageNames[2], 'NTLM');
+      test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
 
-    maybeDone.done();
-  });
+      let availableSspiPackageNames = SspiClientApi.getAvailableSspiPackageNames();
+      test.strictEqual(availableSspiPackageNames.length, 3);
+      test.strictEqual(availableSspiPackageNames[0], 'Negotiate');
+      test.strictEqual(availableSspiPackageNames[1], 'Kerberos');
+      test.strictEqual(availableSspiPackageNames[2], 'NTLM');
+
+      maybeDone.done();
+    });
 }
 
 // Validates
@@ -271,23 +276,28 @@ exports.getNextBlobCannedResponseEmptyInBuf = function (test) {
   const numRuns = 7;
   const maybeDone = new MaybeDone(test, numRuns);
 
-  for (i = 0; i < numRuns - 2; i++) {
-    getNextBlobCannedResponseEmptyInBufImpl(test, null, 0, maybeDone);
+  for (let i = 0; i < numRuns - 2; i++) {
+    getNextBlobCannedResponseEmptyInBufImpl(test, null, i, maybeDone);
   }
 
   getNextBlobCannedResponseEmptyInBufImpl(test, Buffer.alloc(10), 0, maybeDone);
-  getNextBlobCannedResponseEmptyInBufImpl(test, 'some string', 0, maybeDone);
+  getNextBlobCannedResponseEmptyInBufImpl(test, 'some string', 'some other string', maybeDone);
 }
 
 // Validates
 //  - JavaScript going through and executing native code.
 //  - server response going from JavaScript to native code correctly.
 //  - client response coming back from native code to JavaScript correctly.
-exports.getNextBlobCannedResponseNonEmptyInBufImpl = function (test) {
-  const serverResponse = Buffer.alloc(35);
-  const serverResponseLength = 20;
-  for (i = 0; i < serverResponseLength; i++) {
-    serverResponse[i] = serverResponseLength - i;
+function getNextBlobCannedResponseNonEmptyInBufImpl(
+  test,
+  maybeDone,
+  serverResponseBufferSize,
+  serverResponseBeginOffset,
+  serverResponseLength) {
+
+  const serverResponse = Buffer.alloc(serverResponseBufferSize);
+  for (let i = 0; i < serverResponseLength; i++) {
+    serverResponse[i + serverResponseBeginOffset] = serverResponseLength - i;
   }
 
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
@@ -295,10 +305,10 @@ exports.getNextBlobCannedResponseNonEmptyInBufImpl = function (test) {
   // Set unit test mode to get a canned response corresponding to empty serverResponse.
   sspiClient.utEnableCannedResponse();
 
-  sspiClient.getNextBlob(serverResponse, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
+  sspiClient.getNextBlob(serverResponse, serverResponseBeginOffset, serverResponseLength, (clientResponse, isDone, errorCode, errorString) => {
     test.strictEqual(clientResponse.length, serverResponseLength);
-    for (i = 0; i < serverResponseLength; i++) {
-      test.strictEqual(clientResponse[i], serverResponse[i]);
+    for (let i = 0; i < serverResponseLength; i++) {
+      test.strictEqual(clientResponse[i], serverResponse[i + serverResponseBeginOffset]);
     }
 
     test.strictEqual(isDone, false);
@@ -307,16 +317,52 @@ exports.getNextBlobCannedResponseNonEmptyInBufImpl = function (test) {
 
     test.strictEqual(SspiClientApi.getDefaultSspiPackageName(), 'Negotiate');
 
-    test.done();
+    maybeDone.done();
   });
+}
+
+exports.getNextBlobCannedResponseNonEmptyInBuf = function (test) {
+  const numRuns = 7;
+  const maybeDone = new MaybeDone(test, numRuns);
+  const serverResponseBufferSize = 50;
+  let serverResponseBeginOffset = 0;
+  let serverResponseLength = 50;
+
+  for (let i = 0; i < numRuns - 2; i++) {
+    getNextBlobCannedResponseNonEmptyInBufImpl(
+      test,
+      maybeDone,
+      serverResponseBufferSize,
+      serverResponseBeginOffset,
+      serverResponseLength);
+
+    serverResponseBeginOffset++;
+    serverResponseLength--;
+  }
+
+  // From middle to end.
+  getNextBlobCannedResponseNonEmptyInBufImpl(
+    test,
+    maybeDone,
+    serverResponseBufferSize,
+    10,
+    serverResponseBufferSize - 10);
+
+  // From begin to middle.
+  getNextBlobCannedResponseNonEmptyInBufImpl(
+    test,
+    maybeDone,
+    serverResponseBufferSize,
+    0,
+    serverResponseBufferSize - 10);
 }
 
 exports.getNextBlobMultipleInCallbacksSameInstance = function (test) {
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
 
   // Should not throw exception.
-  sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
-    sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+  sspiClient.getNextBlob(Buffer.alloc(10), 0, 10, () => {
+    sspiClient.getNextBlob(Buffer.alloc(10), 0, 10, () => {
       test.done();
     });
   });
@@ -326,13 +372,13 @@ exports.getNextBlobMultipleInProgressSameInstanceFails = function (test) {
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
 
   // Should not throw exception.
-  sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+  sspiClient.getNextBlob(Buffer.alloc(10), 0, 10, () => {
   });
 
   // Should throw exception.
   const expectedErrorMessage = 'Single invocation of getNextBlob per instance of SspiClient may be in flight.';
   try {
-    sspiClient.getNextBlob(Buffer.alloc(10), 10, () => {
+    sspiClient.getNextBlob(Buffer.alloc(10), 0, 10, () => {
     });
   } catch (err) {
     test.strictEqual(err.message, expectedErrorMessage);
@@ -352,8 +398,8 @@ function getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, getNextBlobBound) {
 }
 
 exports.getNextBlobInvalidNumberOfArgs = function (test) {
-  const numRuns = 3;
-  const maybeDone = new MaybeDone(test, 3);
+  const numRuns = 4;
+  const maybeDone = new MaybeDone(test, numRuns);
 
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
 
@@ -365,6 +411,9 @@ exports.getNextBlobInvalidNumberOfArgs = function (test) {
 
   getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, sspiClient.getNextBlob.bind(sspiClient,
     Buffer.alloc(4), 3)); // Two args.
+
+  getNextBlobInvalidNumberOfArgsImpl(test, maybeDone, sspiClient.getNextBlob.bind(sspiClient,
+  Buffer.alloc(4), 3, 4)); // Three args.
 }
 
 function getNextBlobInvalidArgImpl(test, expectedErrorMessage, getNextBlobBound, maybeDone) {
@@ -385,7 +434,7 @@ exports.getNextBlobInvalidServerResponseArg = function (test) {
   getNextBlobInvalidArgImpl(
     test,
     expectedErrorMessage,
-    sspiClient.getNextBlob.bind(sspiClient, stringTypeArg, 10, () => { }),
+    sspiClient.getNextBlob.bind(sspiClient, 0, stringTypeArg, 10, () => { }),
     maybeDone);
 }
 
@@ -404,12 +453,82 @@ exports.getNextBlobInvalidServerResponseLengthArg = function (test) {
   const expectedErrorMessage = '\'serverResponseLength\' must be a non-negative integer.';
   const sspiClient = new SspiClientApi.SspiClient('fake_spn');
 
-  for (i = 0; i < invalidLengths.length; i++) {
+  for (let i = 0; i < invalidLengths.length; i++) {
     getNextBlobInvalidArgImpl(
       test,
       expectedErrorMessage,
-      sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(25), invalidLengths[i], () => { }),
+      sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(25), 0, invalidLengths[i], () => { }),
       maybeDone);
+  }
+}
+
+exports.getNextBlobInvalidServerResponseBeginOffsetArg = function (test) {
+  let invalidOffsets = [
+    -10,  // Negative integer.
+    "1",  // Number like String.
+    "Somestring",   // String.
+    3.3,  // Float positive.
+    -3.3, // Floag negative.
+  ];
+
+  const numRuns = invalidOffsets.length;
+  const maybeDone = new MaybeDone(test, numRuns);
+
+  const expectedErrorMessage = '\'serverResponseBeginOffset\' must be a non-negative integer.';
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  for (let i = 0; i < invalidOffsets.length; i++) {
+    getNextBlobInvalidArgImpl(
+      test,
+      expectedErrorMessage,
+      sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(25), invalidOffsets[i], 25, () => { }),
+      maybeDone);
+  }
+}
+
+exports.getNextBlobBufferTooSmall = function (test) {
+  const serverResponseBufferSizeIndex = 0;
+  const serverResponseBeginOffsetIndex = 1;
+  const serverResponseLengthIndex = 2;
+  let testData = [
+    [0, 0, 1],
+    [1, 1, 1],
+    [1, 0, 2],
+    [25, 0, 26],
+    [25, 10, 16],
+    [25, 24, 2],
+    [25, 25, 1],
+    [25, 26, 1]
+  ];
+
+  const numRuns = testData.length;
+  const maybeDone = new MaybeDone(test, numRuns);
+
+  const sspiClient = new SspiClientApi.SspiClient('fake_spn');
+
+  for (let i = 0; i < testData.length; i++) {
+    const expectedErrorMessage = '\'serverResponse\' buffer too small. '
+      + '\'serverResponse\' buffer size=' + testData[i][serverResponseBufferSizeIndex]
+      + ', \'serverResponseBeginOffset\'=' + testData[i][serverResponseBeginOffsetIndex]
+      + ', \'serverResponseLength\'=' + testData[i][serverResponseLengthIndex];
+
+    if (i === testData.length - 1) {
+      test.strictEqual(
+        expectedErrorMessage,
+        '\'serverResponse\' buffer too small. \'serverResponse\' buffer size=25, '
+        + '\'serverResponseBeginOffset\'=26, \'serverResponseLength\'=1');
+    }
+
+    getNextBlobInvalidArgImpl(
+      test,
+      expectedErrorMessage,
+      sspiClient.getNextBlob.bind(
+        sspiClient,
+        Buffer.alloc(testData[i][serverResponseBufferSizeIndex]),
+        testData[i][serverResponseBeginOffsetIndex],
+        testData[i][serverResponseLengthIndex],
+        () => { }),
+        maybeDone);
   }
 }
 
@@ -422,6 +541,6 @@ exports.getNextBlobInvalidCallbackArg = function (test) {
   getNextBlobInvalidArgImpl(
     test,
     expectedErrorMessage,
-    sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(10), 10, stringTypeArg),
+    sspiClient.getNextBlob.bind(sspiClient, Buffer.alloc(10), 0, 10, stringTypeArg),
     maybeDone);
 }

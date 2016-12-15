@@ -92,7 +92,7 @@ const getFqdn = () => {
 const getNextBlob = () => {
   if (canInvokeGetNextBlob) {
     canInvokeGetNextBlob = false;
-    sspiClient.getNextBlob(serverResponse, getBufferLengthSafe(serverResponse), (clientResponse, isDone, errorCode, errorString) => {
+    sspiClient.getNextBlob(serverResponse, 0, getBufferLengthSafe(serverResponse), (clientResponse, isDone, errorCode, errorString) => {
       if (errorCode) {
         console.log(errorString);
       } else {

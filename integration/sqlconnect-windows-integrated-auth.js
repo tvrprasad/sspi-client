@@ -31,17 +31,19 @@ let testConfigs = [
 const sqlQuery = 'SELECT * FROM dbo.MSreplication_options';
 
 let currentTestIndex = 0;
+let successCount = 0;
 
 process.on('exit', () => {
   let resultStr = '#### ';
-  if (currentTestIndex == testConfigs.length) {
+  if (successCount === testConfigs.length) {
     resultStr += 'SUCCESS: ';
   } else {
     resultStr += 'FAILURE: ';
   }
 
   console.log('####################################################');
-  console.log(resultStr, currentTestIndex, ' out of ', testConfigs.length, ' tests succeeded. ####');
+  console.log(resultStr, currentTestIndex, ' out of ', testConfigs.length, ' tests ran. ##########');
+  console.log(resultStr, successCount, ' out of ', testConfigs.length, ' tests succeeded. ####');
   console.log('####################################################');
 });
 
@@ -70,7 +72,11 @@ function executeStatement(connection) {
       console.log(err);
       connection.close();
     } else {
-      console.log('Success: Rows=', request.rowCount, ' for config:');
+      if (request.rowCount > 0) {
+        successCount++;
+      }
+
+      console.log('Query completed. Rows=', request.rowCount, '. For config:');
       console.log(testConfigs[currentTestIndex]);
       console.log();
       connection.close();
