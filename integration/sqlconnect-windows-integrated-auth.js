@@ -17,10 +17,10 @@ let testConfigs = [
   { server: 'prasad-asus', securityPackage: 'ntlm', encrypt: true },
 
   // These are known failures.
-  //{ server: 'prasadtammana', securityPackage: undefined, encrypt: false },
-  //{ server: 'prasadtammana', securityPackage: undefined, encrypt: true },
-  //{ server: 'prasadtammana', securityPackage: 'negotiate', encrypt: false },
-  //{ server: 'prasadtammana', securityPackage: 'negotiate', encrypt: true },
+  { server: 'prasadtammana', securityPackage: undefined, encrypt: false },
+  { server: 'prasadtammana', securityPackage: undefined, encrypt: true },
+  { server: 'prasadtammana', securityPackage: 'negotiate', encrypt: false },
+  { server: 'prasadtammana', securityPackage: 'negotiate', encrypt: true },
 
   { server: 'prasadtammana', securityPackage: 'kerberos', encrypt: false },
   { server: 'prasadtammana', securityPackage: 'kerberos', encrypt: true },
