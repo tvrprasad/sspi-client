@@ -18,20 +18,21 @@ public:
     static SECURITY_STATUS Initialize(
         std::vector<std::string>* availablePackages,
         int* defaultPackageIndex,
-        char* errorString,
-        int errorStringBufferSize);
+        std::string* errorString);
 
     // Callee creates the outBlob.
     // Caller owns the lifetime of outBlob.
     // Caller deletes outBlob by invoking FreeBlob().
+    //  - Caller invoking FreeBlob() vs invoking delete directly decouples
+    //    the caller and SspiImpl. This way caller does not need to know if
+    //    SspiImpl did this allocation with malloc or free or some other means.
     SECURITY_STATUS GetNextBlob(
         const char* inBlob,
         int inBlobLength,
         char** outBlob,
         int* outBlobLength,
         bool* isDone,
-        char* errorString,
-        int errorStringBufferSize);
+        std::string* errorString);
 
     // Call triggered by JavaScript garbage collector.
     static void FreeBlob(char* blob);
@@ -46,6 +47,9 @@ private:
     SspiImpl(const SspiImpl&);
     SspiImpl& operator=(const SspiImpl&);
 
+    void DeleteCredHandle();
+    void DeleteCtxtHandle();
+
     static const int c_maxPackageNameLength = 32;
     static const int s_numSupportedPackages = 3;
     static char s_supportedPackages[s_numSupportedPackages][c_maxPackageNameLength];
@@ -54,10 +58,7 @@ private:
     static int s_packageMaxTokenSize;
 
     CredHandle m_credHandle;
-    bool m_hasCredHandle;
-
     CtxtHandle m_ctxtHandle;
-    bool m_hasCtxtHandle;
 
     std::string m_spn;
     std::string m_securityPackage;
@@ -69,8 +70,7 @@ private:
         char** outBlob,
         int* outBlobLength,
         bool* isDone,
-        char* errorString,
-        int errorStringBufferSize);
+        std::string* errorString);
 
     bool m_utEnableCannedResponse;
     bool m_utForceCompleteAuth;

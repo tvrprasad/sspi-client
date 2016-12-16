@@ -1,3 +1,10 @@
+// This test:
+//  - Defines test configurations to cover all security packages with and
+//    without encryption across two machines.
+//  - Establishes connection and makes a query for each configuration.
+//  - Does this sequentially.
+//  - Goal is test the package with Tedious for all configurations.
+
 const Connection = require('../../../src/tedious/src/tedious').Connection;
 var Request = require('../../../src/tedious/src/tedious').Request;
 
@@ -15,13 +22,10 @@ let testConfigs = [
   { server: 'prasad-asus', securityPackage: 'kerberos', encrypt: true },
   { server: 'prasad-asus', securityPackage: 'ntlm', encrypt: false },
   { server: 'prasad-asus', securityPackage: 'ntlm', encrypt: true },
-
-  // These are known failures.
   { server: 'prasadtammana', securityPackage: undefined, encrypt: false },
   { server: 'prasadtammana', securityPackage: undefined, encrypt: true },
   { server: 'prasadtammana', securityPackage: 'negotiate', encrypt: false },
   { server: 'prasadtammana', securityPackage: 'negotiate', encrypt: true },
-
   { server: 'prasadtammana', securityPackage: 'kerberos', encrypt: false },
   { server: 'prasadtammana', securityPackage: 'kerberos', encrypt: true },
   { server: 'prasadtammana', securityPackage: 'ntlm', encrypt: false },
@@ -30,8 +34,8 @@ let testConfigs = [
 
 const sqlQuery = 'SELECT * FROM dbo.MSreplication_options';
 
-let currentTestIndex = 0;
 let successCount = 0;
+let failureCount = 0;
 
 process.on('exit', () => {
   let resultStr = '#### ';
@@ -42,14 +46,18 @@ process.on('exit', () => {
   }
 
   console.log('####################################################');
-  console.log(resultStr, currentTestIndex, ' out of ', testConfigs.length, ' tests ran. ##########');
-  console.log(resultStr, successCount, ' out of ', testConfigs.length, ' tests succeeded. ####');
+  console.log(resultStr, successCount, ' out of ', testConfigs.length, ' tests succeeded.');
+  console.log(resultStr, failureCount, ' out of ', testConfigs.length, ' tests failed.');
   console.log('####################################################');
 });
 
-runNextTest();
+runNextTest(0);
 
-function runNextTest() {
+function runNextTest(currentTestIndex) {
+  if (currentTestIndex == testConfigs.length) {
+    return;
+  }
+
   config.server = testConfigs[currentTestIndex].server;
   config.securityPackage = testConfigs[currentTestIndex].securityPackage;
   config.options.encrypt = testConfigs[currentTestIndex].encrypt;
@@ -57,35 +65,47 @@ function runNextTest() {
   const connection = new Connection(config);
   connection.on('connect', function (err) {
     if (err) {
-      console.log("Connection failed. Error details:");
+      failureCount++;
+      console.log('ERROR: Connection failed for config:');
+      console.log(testConfigs[currentTestIndex]);
       console.log(err);
+      console.log();
+
+      runNextTest(++currentTestIndex);
     }
     else {
-      executeStatement(connection);
+      executeStatement(connection, currentTestIndex);
     }
   });
 }
 
-function executeStatement(connection) {
+function executeStatement(connection, currentTestIndex) {
+  let rowCount = 0;
+
   request = new Request(sqlQuery, function (err) {
     if (err) {
-      console.log(err);
-      connection.close();
-    } else {
-      if (request.rowCount > 0) {
-        successCount++;
-      }
-
-      console.log('Query completed. Rows=', request.rowCount, '. For config:');
+      failureCount++;
+      console.log('ERROR: Query failed for config:');
       console.log(testConfigs[currentTestIndex]);
+      console.log(err);
       console.log();
-      connection.close();
-
-      currentTestIndex++;
-      if (currentTestIndex != testConfigs.length) {
-        runNextTest();
+    } else {
+      if (rowCount > 0) {
+        successCount++;
+      } else {
+        failureCount++;
+        console.log('ERROR: Query completed without data coming back. Rows=', rowCount, '. For config:');
+        console.log(testConfigs[currentTestIndex]);
+        console.log();
       }
     }
+
+    connection.close();
+    runNextTest(++currentTestIndex);
+  });
+
+  request.on('row', function (columns) {
+    rowCount++;
   });
 
   connection.execSql(request);
