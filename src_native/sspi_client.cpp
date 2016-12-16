@@ -23,13 +23,13 @@ class SspiClientInitializeWorker : public Nan::AsyncWorker
 public:
     SspiClientInitializeWorker(Nan::Callback* callback) :
         Nan::AsyncWorker(callback),
+        m_securityStatus(SEC_E_INTERNAL_ERROR),
+        m_errorString(),
         m_availablePackages(),
         m_defaultPackageIndex(-1)
     {
         DebugLog("%ul: Main event loop: SspiClientInitializeWorker::SspiClientInitializeWorker.\n",
             GetCurrentThreadId());
-
-        m_errorString[0] = '\0';
     }
 
     // This function executes inside the worker-thread. No V8 data-structures
@@ -44,8 +44,7 @@ public:
         m_securityStatus = SspiImpl::Initialize(
             &m_availablePackages,
             &m_defaultPackageIndex,
-            m_errorString,
-            c_errorStringBufferSize);
+            &m_errorString);
     }
 
     // Executed in main event loop thread after async work is completed. Invokes
@@ -67,7 +66,7 @@ public:
             availablePackages,
             Nan::New<v8::Uint32>(m_defaultPackageIndex),
             Nan::New<v8::Uint32>(m_securityStatus),
-            Nan::New<v8::String>(m_errorString).ToLocalChecked()
+            Nan::New<v8::String>(m_errorString.c_str()).ToLocalChecked()
         };
 
         callback->Call(4, argv);
@@ -84,11 +83,8 @@ private:
     SspiClientInitializeWorker(const SspiClientInitializeWorker&);
     SspiClientInitializeWorker& operator=(const SspiClientInitializeWorker&);
 
-    SECURITY_STATUS m_securityStatus = SEC_E_INTERNAL_ERROR;
-
-    static const int c_errorStringBufferSize = 256;
-    char m_errorString[c_errorStringBufferSize];
-
+    SECURITY_STATUS m_securityStatus;
+    std::string m_errorString;
     std::vector<std::string> m_availablePackages;
     int m_defaultPackageIndex;
 };
@@ -104,8 +100,9 @@ public:
         int inBlobBeginOffset,
         int inBlobLength)
         : Nan::AsyncWorker(callback),
-        m_securityStatus(-1),
         m_sspiImpl(sspiImpl),
+        m_securityStatus(-1),
+        m_errorString(),
         m_inBlob(nullptr),
         m_inBlobLength(inBlobLength),
         m_outBlob(nullptr),
@@ -115,13 +112,13 @@ public:
         DebugLog("%ul: Main event loop: SspiClientGetNextBlobWorker::SspiClientInitializeWorker.\n",
             GetCurrentThreadId());
 
+        // Accessing V8 data from worker threads is not allowed. That's why
+        // we need to make a copy of the inBlob to hand off to worker thread.
         if (m_inBlobLength)
         {
             m_inBlob.reset(new char[m_inBlobLength]);
             memcpy(m_inBlob.get(), inBlob + inBlobBeginOffset, m_inBlobLength);
         }
-
-        m_errorString[0] = '\0';
     }
 
     // This function executes inside the worker-thread. No V8 data-structures
@@ -139,8 +136,7 @@ public:
             &m_outBlob,
             &m_outBlobLength,
             &m_isDone,
-            m_errorString,
-            c_errorStringBufferSize);
+            &m_errorString);
     }
 
     // Executed in main event loop thread after async work is completed. Invokes
@@ -155,7 +151,7 @@ public:
             Nan::NewBuffer(m_outBlob, m_outBlobLength, FreeCallback, nullptr).ToLocalChecked(),
             Nan::New<v8::Boolean>(m_isDone),
             Nan::New<v8::Uint32>(m_securityStatus),
-            Nan::New<v8::String>(m_errorString).ToLocalChecked()
+            Nan::New<v8::String>(m_errorString.c_str()).ToLocalChecked()
         };
 
         callback->Call(4, argv);
@@ -184,14 +180,14 @@ private:
     std::shared_ptr<SspiImpl> m_sspiImpl;
 
     SECURITY_STATUS m_securityStatus;
-    static const int c_errorStringBufferSize = 256;
-    char m_errorString[c_errorStringBufferSize];
+    std::string m_errorString;
 
     std::unique_ptr<char> m_inBlob;
     int m_inBlobLength;
 
-    // This is allocated and free'd by SspiImpl class. It's lifetime is managed
-    // by the V8 garbage collector.
+    // This is allocated SspiImpl class. It's lifetime is managed
+    // by the V8 garbage collector. This will be freed in the callback
+    // FreeCallback() which will be invoked V8 garbage collector.
     char* m_outBlob;
     int m_outBlobLength;
     bool m_isDone;

@@ -1,7 +1,8 @@
 // This test:
-//    - sets up 1600 parallel connections
+//    - sets up about 1000 parallel connections
 //    - spread across two different machines
 //    - using a mix of all supported security packages
+//    - with encrypt set to true and false
 //    - makes a simple query on each connection in parallel
 //    - validates that the query returns at least one row of data
 
@@ -33,7 +34,9 @@ let testConfigTemplate = [
 ];
 
 let testConfigs = [];
-for (let i = 0; i < 100; i++) {
+const maxNumTests = 1000;
+
+while (testConfigs.length < maxNumTests) {
   testConfigs = testConfigs.concat(testConfigTemplate);
 }
 

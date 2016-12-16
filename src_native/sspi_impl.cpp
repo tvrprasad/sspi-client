@@ -23,8 +23,6 @@ const char* SspiImpl::s_defaultPackage = nullptr;
 int SspiImpl::s_packageMaxTokenSize = -1;
 
 SspiImpl::SspiImpl(const char* spn, const char* securityPackage) :
-    m_hasCredHandle(false),
-    m_hasCtxtHandle(false),
     m_spn(spn),
     m_securityPackage(),
     m_utEnableCannedResponse(false),
@@ -32,6 +30,7 @@ SspiImpl::SspiImpl(const char* spn, const char* securityPackage) :
 {
     DebugLog("%d: Main event loop: SspiImpl::SspiImpl: spn=%s", GetCurrentThreadId(), spn);
     SecInvalidateHandle(&m_credHandle);
+    SecInvalidateHandle(&m_ctxtHandle);
 
     if (securityPackage != nullptr)
     {
@@ -43,12 +42,14 @@ SspiImpl::SspiImpl(const char* spn, const char* securityPackage) :
 SECURITY_STATUS SspiImpl::Initialize(
     std::vector<std::string>* availablePackages,
     int* defaultPackageIndex,
-    char* errorString,
-    int errorStringBufferSize)
+    std::string* errorString)
 {
     DebugLog("%d: Worker thread: SspiImpl::Initialize.\n", GetCurrentThreadId());
 
-    errorString[0] = '\0';
+    errorString->assign("");
+
+    const int c_errorStringBufferSize = 256;
+    char errorStringLocal[c_errorStringBufferSize];
 
     unsigned long numPackages;
     PSecPkgInfoA psecPkgInfo;
@@ -57,11 +58,12 @@ SECURITY_STATUS SspiImpl::Initialize(
     if (securityStatus != SEC_E_OK)
     {
         snprintf(
-            errorString,
-            errorStringBufferSize,
+            errorStringLocal,
+            c_errorStringBufferSize,
             "EnumerateSecurityPackagesA failed with error code: 0x%X.",
             securityStatus);
 
+        errorString->assign(errorStringLocal);
         return securityStatus;
     }
 
@@ -90,24 +92,26 @@ SECURITY_STATUS SspiImpl::Initialize(
     if (securityStatus != SEC_E_OK)
     {
         snprintf(
-            errorString,
-            errorStringBufferSize,
+            errorStringLocal,
+            c_errorStringBufferSize,
             "FreeContextBuffer call failed with error code: 0x%X.",
             securityStatus);
 
+        errorString->assign(errorStringLocal);
         return securityStatus;
     }
 
     if (s_defaultPackage == nullptr)
     {
         snprintf(
-            errorString,
-            errorStringBufferSize,
+            errorStringLocal,
+            c_errorStringBufferSize,
             "No supported security package (%s, %s or %s) available on client.",
             s_supportedPackages[0],
             s_supportedPackages[1],
             s_supportedPackages[2]);
 
+        errorString->assign(errorStringLocal);
         return securityStatus;
     }
 
@@ -120,8 +124,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
     char** outBlob,
     int* outBlobLength,
     bool* isDone,
-    char* errorString,
-    int errorStringBufferSize)
+    std::string* errorString)
 {
     DebugLog("%d: Worker thread: SspiImpl::GetNextBlob.\n", GetCurrentThreadId());
 
@@ -133,17 +136,20 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
             outBlob,
             outBlobLength,
             isDone,
-            errorString,
-            errorStringBufferSize);
+            errorString);
     }
 
-    *outBlob = new char[s_packageMaxTokenSize];
-    errorString[0] = '\0';
+    errorString->assign("");
 
+    const int c_errorStringBufferSize = 256;
+    char errorStringLocal[c_errorStringBufferSize];
+
+    // Lifetime owned by caller. See comments in the header file for details.
+    *outBlob = new char[s_packageMaxTokenSize];
     TimeStamp timeExpiry;
     SECURITY_STATUS securityStatus;
 
-    if (!m_hasCredHandle)
+    if (!SecIsValidHandle(&m_credHandle))
     {
         const char* securityPackage;
         if (m_securityPackage.empty())
@@ -169,20 +175,15 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
         if (securityStatus != SEC_E_OK)
         {
             snprintf(
-                errorString,
-                errorStringBufferSize,
+                errorStringLocal,
+                c_errorStringBufferSize,
                 "AcquireCredentialsHandleA failed with error code: 0x%X.",
                 securityStatus);
 
+            errorString->assign(errorStringLocal);
             return securityStatus;
         }
-
-        m_hasCredHandle = true;
     }
-
-    size_t spnCopySize = m_spn.length() + 1;
-    char* spnCopy = static_cast<char*>(_alloca(spnCopySize));
-    strncpy(spnCopy, m_spn.c_str(), spnCopySize);
 
     SecBuffer inSecBuffer;
     inSecBuffer.BufferType = SECBUFFER_TOKEN;
@@ -192,14 +193,7 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
     SecBufferDesc inSecBufferDesc;
     inSecBufferDesc.ulVersion = SECBUFFER_VERSION;
     inSecBufferDesc.pBuffers = &inSecBuffer;
-
-    if (m_hasCtxtHandle) {
-        inSecBufferDesc.cBuffers = 1;
-    }
-    else
-    {
-        inSecBufferDesc.cBuffers = 0;
-    }
+    inSecBufferDesc.cBuffers = 1;
 
     SecBuffer outSecBuffer;
     outSecBuffer.BufferType = SECBUFFER_TOKEN;
@@ -215,13 +209,13 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
 
     securityStatus = InitializeSecurityContextA(
         &m_credHandle,      // Credential handle.
-        m_hasCtxtHandle ? &m_ctxtHandle : nullptr,      // Context handle - input.
-        spnCopy,    // Service Principal name (SPN).
+        SecIsValidHandle(&m_ctxtHandle) ? &m_ctxtHandle : nullptr,      // Context handle - input.
+        const_cast<char*>(m_spn.c_str()),    // Service Principal name (SPN).
         ISC_REQ_DELEGATE | ISC_REQ_MUTUAL_AUTH | ISC_REQ_INTEGRITY | ISC_REQ_EXTENDED_ERROR,
                     // Context bit flags.
         0,          // Reserved - unused.
         SECURITY_NATIVE_DREP,       // Target data representation.
-        m_hasCtxtHandle ? &inSecBufferDesc : nullptr,   // Input buffer, has data from server.
+        SecIsValidHandle(&m_ctxtHandle) ? &inSecBufferDesc : nullptr,   // Input buffer, has data from server.
         0,          // Reserved - unused.
         &m_ctxtHandle,      // Context handle - output.
         &outSecBufferDesc,  // Output buffer, data to send to server.
@@ -234,15 +228,14 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
         && securityStatus != SEC_I_COMPLETE_NEEDED)
     {
         snprintf(
-            errorString,
-            errorStringBufferSize,
+            errorStringLocal,
+            c_errorStringBufferSize,
             "InitializeSecurityContextA failed with error code: 0x%X.",
             securityStatus);
 
+        errorString->assign(errorStringLocal);
         return securityStatus;
     }
-
-    m_hasCtxtHandle = true;
 
     *isDone = securityStatus != SEC_I_CONTINUE_NEEDED
         && securityStatus != SEC_I_COMPLETE_AND_CONTINUE;
@@ -255,11 +248,12 @@ SECURITY_STATUS SspiImpl::GetNextBlob(
         if (securityStatus != SEC_E_OK)
         {
             snprintf(
-                errorString,
-                errorStringBufferSize,
+                errorStringLocal,
+                c_errorStringBufferSize,
                 "CompleteAuthToken failed with error code: 0x%X.",
                 securityStatus);
 
+            errorString->assign(errorStringLocal);
             return securityStatus;
         }
     }
@@ -276,10 +270,8 @@ void SspiImpl::FreeBlob(char* blob)
     delete[] blob;
 }
 
-SspiImpl::~SspiImpl()
+void::SspiImpl::DeleteCredHandle()
 {
-    DebugLog("%d: Garbage Collection Thread: SspiImpl::~SspiImpl.\n", GetCurrentThreadId());
-
     if (SecIsValidHandle(&m_credHandle))
     {
         SECURITY_STATUS securityStatus = FreeCredentialHandle(&m_credHandle);
@@ -290,7 +282,33 @@ SspiImpl::~SspiImpl()
                 GetCurrentThreadId(),
                 securityStatus);
         }
+
+        SecInvalidateHandle(&m_credHandle);
     }
+}
+
+void SspiImpl::DeleteCtxtHandle()
+{
+    if (SecIsValidHandle(&m_ctxtHandle))
+    {
+        SECURITY_STATUS securityStatus = DeleteSecurityContext(&m_ctxtHandle);
+        if (securityStatus != SEC_E_OK)
+        {
+            DebugLog(
+                "%d: DeleteSecurityContext failed with error code: %ld.\n",
+                GetCurrentThreadId(),
+                securityStatus);
+        }
+
+        SecInvalidateHandle(&m_ctxtHandle);
+    }
+}
+
+SspiImpl::~SspiImpl()
+{
+    DebugLog("%d: Garbage Collection Thread: SspiImpl::~SspiImpl.\n", GetCurrentThreadId());
+    DeleteCtxtHandle();
+    DeleteCredHandle();
 }
 
 void SspiImpl::UtEnableCannedResponse(bool enable)
@@ -309,8 +327,7 @@ SECURITY_STATUS SspiImpl::UtSetCannedResponse(
     char** outBlob,
     int* outBlobLength,
     bool* isDone,
-    char* errorString,
-    int errorStringBufferSize)
+    std::string* errorString)
 {
     if (!inBlobLength)
     {
@@ -324,7 +341,7 @@ SECURITY_STATUS SspiImpl::UtSetCannedResponse(
 
         *isDone = true;
 
-        strncpy(errorString, "Canned Response without input data.", errorStringBufferSize);
+        errorString->assign("Canned Response without input data.");
         return SEC_E_INTERNAL_ERROR;    // 0x80090304L
     }
     else
@@ -338,7 +355,7 @@ SECURITY_STATUS SspiImpl::UtSetCannedResponse(
 
         *isDone = false;
 
-        strncpy(errorString, "Canned Response with input data.", errorStringBufferSize);
+        errorString->assign("Canned Response with input data.");
         return SEC_E_TARGET_UNKNOWN;    // 0x80090303L
     }
 }
