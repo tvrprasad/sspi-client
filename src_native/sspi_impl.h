@@ -2,6 +2,7 @@
 
 #define SECURITY_WIN32
 
+#include <memory>
 #include <Windows.h>
 #include <Sspi.h>
 #include <string>
@@ -47,21 +48,34 @@ private:
     SspiImpl(const SspiImpl&);
     SspiImpl& operator=(const SspiImpl&);
 
+    static HRESULT ConvertUtf8ToMultiByte(
+        const char* paramName,
+        const char* utf8Str,
+        std::unique_ptr<WCHAR[]>* multiByteStr,
+        char* errorString,
+        int errorStringBufferSize);
+
     void DeleteCredHandle();
     void DeleteCtxtHandle();
 
     static const int c_maxPackageNameLength = 32;
     static const int s_numSupportedPackages = 3;
-    static char s_supportedPackages[s_numSupportedPackages][c_maxPackageNameLength];
+    static WCHAR s_supportedPackages[s_numSupportedPackages][c_maxPackageNameLength];
+    static char s_supportedPackagesUtf8[s_numSupportedPackages][c_maxPackageNameLength];
 
-    static const char* s_defaultPackage;
+    static const WCHAR* s_defaultPackage;
     static int s_packageMaxTokenSize;
+
+    static const int c_errorStringBufferSize = 256;
 
     CredHandle m_credHandle;
     CtxtHandle m_ctxtHandle;
 
     std::string m_spn;
+    std::unique_ptr<WCHAR[]> m_spnMultiByte;
+
     std::string m_securityPackage;
+    std::unique_ptr<WCHAR[]> m_securityPackageMultiByte;
 
     // Everything below is for unit testing purposes only.
     SECURITY_STATUS UtSetCannedResponse(
