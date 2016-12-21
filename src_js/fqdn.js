@@ -45,6 +45,10 @@ function getFqdnForHostname(hostname, cb) {
 
 // Handles IP address, hostname, localhost or FQDN.
 function getFqdn(hostidentifier, cb) {
+  if (os.type() !== 'Windows_NT') {
+    throw new Error('Package currently not-supported on non-Windows platforms.');
+  }
+
   if (net.isIP(hostidentifier)) {
     getFqdnForIpAddress(hostidentifier, cb);
   } else if (hostidentifier.toLowerCase() == localhostIdentifier) {

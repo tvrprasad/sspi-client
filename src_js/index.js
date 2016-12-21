@@ -1,4 +1,10 @@
-const sspiClientNative = require('bindings')('sspi-client');
+const os = require('os');
+
+let sspiClientNative;
+
+if (os.type() === 'Windows_NT') {
+  sspiClientNative = require('bindings')('sspi-client');
+}
 
 // SSPI intialization code must only be invoked once. These two variables track
 // whether the intialization code is invoked, completed execution and if
@@ -21,6 +27,10 @@ class SspiClient {
   // Creates an instance of the object in native code, which will invoke
   // Windows SSPI calls.
   constructor(spn, securityPackage) {
+    if (os.type() !== 'Windows_NT') {
+      throw new Error('Package currently not-supported on non-Windows platforms.');
+    }
+
     if (arguments.length !== 1 && arguments.length != 2) {
       throw new Error('Invalid number of arguments.');
     }
