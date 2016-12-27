@@ -1,3 +1,5 @@
+'use strict';
+
 const os = require('os');
 
 function makeSpn(serviceClassname, fqdn, instanceNameOrPort, cb) {

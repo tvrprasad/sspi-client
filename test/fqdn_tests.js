@@ -1,3 +1,5 @@
+'use strict';
+
 const Fqdn = require('../src_js/fqdn.js');
 
 function fqdnTestSuccessImpl(test, hostidentifier, expectedFqdnPattern) {

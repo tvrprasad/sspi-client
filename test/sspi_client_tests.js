@@ -1,3 +1,5 @@
+'use strict';
+
 const SspiClientApi = require('../src_js/index.js');
 
 // Comment/Uncomment to enable/disable debug logging in native code.

@@ -1,3 +1,5 @@
+'use strict';
+
 const MakeSpn = require('../src_js/make_spn.js');
 
 exports.makeSpnPort = function(test) {

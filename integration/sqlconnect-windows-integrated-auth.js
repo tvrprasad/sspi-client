@@ -1,3 +1,5 @@
+'use strict';
+
 // This test:
 //  - Defines test configurations to cover all security packages with and
 //    without encryption across two machines.
@@ -82,7 +84,7 @@ function runNextTest(currentTestIndex) {
 function executeStatement(connection, currentTestIndex) {
   let rowCount = 0;
 
-  request = new Request(sqlQuery, function (err) {
+  const request = new Request(sqlQuery, function (err) {
     if (err) {
       failureCount++;
       console.log('ERROR: Query failed for config:');
