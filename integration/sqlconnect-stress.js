@@ -1,3 +1,5 @@
+'use strict';
+
 // This test:
 //    - sets up about 1000 parallel connections
 //    - spread across two different machines
@@ -86,7 +88,7 @@ function runNextTest(currentTestIndex) {
 function executeStatement(connection, currentTestIndex) {
   let rowCount = 0;
 
-  request = new Request(sqlQuery, function (err) {
+  const request = new Request(sqlQuery, function (err) {
     if (err) {
       failureCount++;
       console.log('ERROR: Query failed for config:');
