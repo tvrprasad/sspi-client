@@ -1,3 +1,6 @@
+#include "node_version_support.h"
+#ifdef IS_SUPPORTED_NODE_VERSION
+
 #include "utils.h"
 
 #include <stdio.h>
@@ -20,3 +23,5 @@ void DebugLog(const char* format, ...)
         va_end(args);
     }
 }
+
+#endif  // IS_SUPPORTED_NODE_VERSION
