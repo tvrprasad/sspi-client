@@ -1,3 +1,6 @@
+#include "node_version_support.h"
+#ifdef IS_SUPPORTED_NODE_VERSION
+
 // This file has the code for initializing V8 and hooking up JavaScript objects and
 // methods to corresponding C++ code.
 
@@ -15,6 +18,7 @@
 #include <string>
 
 #include "sspi_impl.h"
+
 #include "utils.h"
 
 // Worker class for executing SSPI initialization code asynchronously.
@@ -344,3 +348,5 @@ NAN_MODULE_INIT(Init) {
 }
 
 NODE_MODULE(SspiClientNative, Init)
+
+#endif  // IS_SUPPORTED_NODE_VERSION

@@ -1,3 +1,6 @@
+#include "node_version_support.h"
+#ifdef IS_SUPPORTED_NODE_VERSION
+
 #include "sspi_impl.h"
 
 #include "utils.h"
@@ -447,3 +450,5 @@ SECURITY_STATUS SspiImpl::UtSetCannedResponse(
         return SEC_E_TARGET_UNKNOWN;    // 0x80090303L
     }
 }
+
+#endif  // IS_SUPPORTED_NODE_VERSION
