@@ -1,9 +1,9 @@
 'use strict';
 
 const net = require('net');
-const SspiClientApi = require('../src_js/index.js');
-const Fqdn = require('../src_js/fqdn.js');
-const MakeSpn = require('../src_js/make_spn.js')
+const SspiClientApi = require('../src_js/index.js').SspiClientApi;
+const Fqdn = require('../src_js/index.js').Fqdn;
+const MakeSpn = require('../src_js/index.js').MakeSpn;
 
 let sspiClient = null;
 let serverResponse = null;
