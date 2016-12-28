@@ -1,6 +1,6 @@
 'use strict';
 
-const Fqdn = require('../src_js/fqdn.js');
+const Fqdn = require('../src_js/index.js').Fqdn;
 
 function fqdnTestSuccessImpl(test, hostidentifier, expectedFqdnPattern) {
   Fqdn.getFqdn(hostidentifier, (err, fqdn) => {

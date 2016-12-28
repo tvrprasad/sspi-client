@@ -5,8 +5,9 @@
   "main": "src_js/index.js",
   "private": true,
   "dependencies": {
+    "bindings": "^1.2.1",
     "nan": "^2.4.0",
-    "bindings": "^1.2.1"
+    "semver": "^5.3.0"
   },
   "devDependencies": {
     "nodeunit": "^0.10.2"
