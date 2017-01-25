@@ -3,7 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 
-const Fqdn = require('../src_js/index.js').Fqdn;
+const Fqdn = require('../../src_js/index.js').Fqdn;
 
 function getLocalhostFqdnPattern() {
   const localhostFqdn = JSON.parse(fs.readFileSync(
