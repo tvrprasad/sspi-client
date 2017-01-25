@@ -1,17 +1,18 @@
 'use strict';
 
 // This test:
-//  - Defines test configurations to cover all security packages with and
-//    without encryption across two machines.
-//  - Establishes connection and makes a query for each configuration.
-//  - Does this sequentially.
-//  - Goal is test the package with Tedious for all configurations.
+//    - sets up about 1000 parallel connections
+//    - spread across two different machines
+//    - using a mix of all supported security packages
+//    - with encrypt set to true and false
+//    - makes a simple query on each connection in parallel
+//    - validates that the query returns at least one row of data
 
 const fs = require('fs');
 const os = require('os');
 
-const Connection = require('../../../src/tedious/src/tedious').Connection;
-const Request = require('../../../src/tedious/src/tedious').Request;
+const Connection = require('../../../../src/tedious/src/tedious').Connection;
+const Request = require('../../../../src/tedious/src/tedious').Request;
 
 const config = {
   domain: 'REDMOND',
@@ -28,7 +29,7 @@ function getRemoteHostName() {
     os.homedir() + '/.sspi-client/test_config.json', 'utf8')).remoteHostName;
 }
 
-let testConfigs = [
+let testConfigTemplate = [
   { server: getLocalhostName(), securityPackage: undefined, encrypt: false },
   { server: getLocalhostName(), securityPackage: undefined, encrypt: true },
   { server: getLocalhostName(), securityPackage: 'negotiate', encrypt: false },
@@ -46,6 +47,13 @@ let testConfigs = [
   { server: getRemoteHostName(), securityPackage: 'ntlm', encrypt: false },
   { server: getRemoteHostName(), securityPackage: 'ntlm', encrypt: true }
 ];
+
+let testConfigs = [];
+const maxNumTests = 1000;
+
+while (testConfigs.length < maxNumTests) {
+  testConfigs = testConfigs.concat(testConfigTemplate);
+}
 
 const sqlQuery = 'SELECT * FROM dbo.MSreplication_options';
 
@@ -66,13 +74,11 @@ process.on('exit', () => {
   console.log('####################################################');
 });
 
-runNextTest(0);
+for (let i = 0; i < testConfigs.length; i++) {
+  runNextTest(i);
+}
 
 function runNextTest(currentTestIndex) {
-  if (currentTestIndex == testConfigs.length) {
-    return;
-  }
-
   config.server = testConfigs[currentTestIndex].server;
   config.securityPackage = testConfigs[currentTestIndex].securityPackage;
   config.options.encrypt = testConfigs[currentTestIndex].encrypt;
@@ -85,8 +91,6 @@ function runNextTest(currentTestIndex) {
       console.log(testConfigs[currentTestIndex]);
       console.log(err);
       console.log();
-
-      runNextTest(++currentTestIndex);
     }
     else {
       executeStatement(connection, currentTestIndex);
@@ -116,7 +120,6 @@ function executeStatement(connection, currentTestIndex) {
     }
 
     connection.close();
-    runNextTest(++currentTestIndex);
   });
 
   request.on('row', function (columns) {
