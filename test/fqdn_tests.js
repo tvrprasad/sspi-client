@@ -1,6 +1,20 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+
 const Fqdn = require('../src_js/index.js').Fqdn;
+
+function getLocalhostFqdnPattern() {
+  const localhostFqdn = JSON.parse(fs.readFileSync(
+    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).localhostFqdn;
+  return new RegExp("^" + localhostFqdn + "$");
+}
+
+function getLocalhostName() {
+  return JSON.parse(fs.readFileSync(
+    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).localhostName;
+}
 
 function fqdnTestSuccessImpl(test, hostidentifier, expectedFqdnPattern) {
   Fqdn.getFqdn(hostidentifier, (err, fqdn) => {
@@ -12,7 +26,7 @@ function fqdnTestSuccessImpl(test, hostidentifier, expectedFqdnPattern) {
 }
 
 exports.loopbackIpAddress = function(test) {
-  fqdnTestSuccessImpl(test, '127.0.0.1', /^prasadtammana.redmond.corp.microsoft.com$/);
+  fqdnTestSuccessImpl(test, '127.0.0.1', getLocalhostFqdnPattern());
 }
 
 exports.ipv4Address = function (test) {
@@ -26,19 +40,19 @@ exports.ipv6Address = function (test) {
 }
 
 exports.simpleHostname = function(test) {
-  fqdnTestSuccessImpl(test, 'prasadtammana', /^prasadtammana.redmond.corp.microsoft.com$/);
+  fqdnTestSuccessImpl(test, getLocalhostName(), getLocalhostFqdnPattern());
 }
 
 exports.localhostLowerCase = function(test) {
-  fqdnTestSuccessImpl(test, 'localhost', /^prasadtammana.redmond.corp.microsoft.com$/);
+  fqdnTestSuccessImpl(test, 'localhost', getLocalhostFqdnPattern());
 }
 
 exports.localhostUpperCase = function(test) {
-  fqdnTestSuccessImpl(test, 'LOCALHOST', /^prasadtammana.redmond.corp.microsoft.com$/);
+  fqdnTestSuccessImpl(test, 'LOCALHOST', getLocalhostFqdnPattern());
 }
 
 exports.localhostMixedCase = function(test) {
-  fqdnTestSuccessImpl(test, 'LoCaLhOsT', /^prasadtammana.redmond.corp.microsoft.com$/);
+  fqdnTestSuccessImpl(test, 'LoCaLhOsT', getLocalhostFqdnPattern());
 }
 
 exports.hostFqdn = function (test) {

@@ -7,31 +7,44 @@
 //  - Does this sequentially.
 //  - Goal is test the package with Tedious for all configurations.
 
+const fs = require('fs');
+const os = require('os');
+
 const Connection = require('../../../src/tedious/src/tedious').Connection;
-var Request = require('../../../src/tedious/src/tedious').Request;
+const Request = require('../../../src/tedious/src/tedious').Request;
 
 const config = {
   domain: 'REDMOND',
   options: { database: 'master' }
 };
 
+function getLocalhostName() {
+  return JSON.parse(fs.readFileSync(
+    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).localhostName;
+}
+
+function getRemoteHostName() {
+  return JSON.parse(fs.readFileSync(
+    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).remoteHostName;
+}
+
 let testConfigs = [
-  { server: 'prasad-asus', securityPackage: undefined, encrypt: false},
-  { server: 'prasad-asus', securityPackage: undefined, encrypt: true },
-  { server: 'prasad-asus', securityPackage: 'negotiate', encrypt: false },
-  { server: 'prasad-asus', securityPackage: 'negotiate', encrypt: true },
-  { server: 'prasad-asus', securityPackage: 'kerberos', encrypt: false },
-  { server: 'prasad-asus', securityPackage: 'kerberos', encrypt: true },
-  { server: 'prasad-asus', securityPackage: 'ntlm', encrypt: false },
-  { server: 'prasad-asus', securityPackage: 'ntlm', encrypt: true },
-  { server: 'prasadtammana', securityPackage: undefined, encrypt: false },
-  { server: 'prasadtammana', securityPackage: undefined, encrypt: true },
-  { server: 'prasadtammana', securityPackage: 'negotiate', encrypt: false },
-  { server: 'prasadtammana', securityPackage: 'negotiate', encrypt: true },
-  { server: 'prasadtammana', securityPackage: 'kerberos', encrypt: false },
-  { server: 'prasadtammana', securityPackage: 'kerberos', encrypt: true },
-  { server: 'prasadtammana', securityPackage: 'ntlm', encrypt: false },
-  { server: 'prasadtammana', securityPackage: 'ntlm', encrypt: true }
+  { server: getLocalhostName(), securityPackage: undefined, encrypt: false },
+  { server: getLocalhostName(), securityPackage: undefined, encrypt: true },
+  { server: getLocalhostName(), securityPackage: 'negotiate', encrypt: false },
+  { server: getLocalhostName(), securityPackage: 'negotiate', encrypt: true },
+  { server: getLocalhostName(), securityPackage: 'kerberos', encrypt: false },
+  { server: getLocalhostName(), securityPackage: 'kerberos', encrypt: true },
+  { server: getLocalhostName(), securityPackage: 'ntlm', encrypt: false },
+  { server: getLocalhostName(), securityPackage: 'ntlm', encrypt: true },
+  { server: getRemoteHostName(), securityPackage: undefined, encrypt: false },
+  { server: getRemoteHostName(), securityPackage: undefined, encrypt: true },
+  { server: getRemoteHostName(), securityPackage: 'negotiate', encrypt: false },
+  { server: getRemoteHostName(), securityPackage: 'negotiate', encrypt: true },
+  { server: getRemoteHostName(), securityPackage: 'kerberos', encrypt: false },
+  { server: getRemoteHostName(), securityPackage: 'kerberos', encrypt: true },
+  { server: getRemoteHostName(), securityPackage: 'ntlm', encrypt: false },
+  { server: getRemoteHostName(), securityPackage: 'ntlm', encrypt: true }
 ];
 
 const sqlQuery = 'SELECT * FROM dbo.MSreplication_options';
