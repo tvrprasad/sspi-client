@@ -7,9 +7,7 @@
 //  - Does this sequentially.
 //  - Goal is test the package with Tedious for all configurations.
 
-const fs = require('fs');
-const os = require('os');
-
+const ConfigUtils = require('../utils/config.js');
 const Connection = require('../../../../src/tedious/src/tedious').Connection;
 const Request = require('../../../../src/tedious/src/tedious').Request;
 
@@ -18,33 +16,23 @@ const config = {
   options: { database: 'master' }
 };
 
-function getLocalhostName() {
-  return JSON.parse(fs.readFileSync(
-    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).localhostName;
-}
-
-function getRemoteHostName() {
-  return JSON.parse(fs.readFileSync(
-    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).remoteHostName;
-}
-
 let testConfigs = [
-  { server: getLocalhostName(), securityPackage: undefined, encrypt: false },
-  { server: getLocalhostName(), securityPackage: undefined, encrypt: true },
-  { server: getLocalhostName(), securityPackage: 'negotiate', encrypt: false },
-  { server: getLocalhostName(), securityPackage: 'negotiate', encrypt: true },
-  { server: getLocalhostName(), securityPackage: 'kerberos', encrypt: false },
-  { server: getLocalhostName(), securityPackage: 'kerberos', encrypt: true },
-  { server: getLocalhostName(), securityPackage: 'ntlm', encrypt: false },
-  { server: getLocalhostName(), securityPackage: 'ntlm', encrypt: true },
-  { server: getRemoteHostName(), securityPackage: undefined, encrypt: false },
-  { server: getRemoteHostName(), securityPackage: undefined, encrypt: true },
-  { server: getRemoteHostName(), securityPackage: 'negotiate', encrypt: false },
-  { server: getRemoteHostName(), securityPackage: 'negotiate', encrypt: true },
-  { server: getRemoteHostName(), securityPackage: 'kerberos', encrypt: false },
-  { server: getRemoteHostName(), securityPackage: 'kerberos', encrypt: true },
-  { server: getRemoteHostName(), securityPackage: 'ntlm', encrypt: false },
-  { server: getRemoteHostName(), securityPackage: 'ntlm', encrypt: true }
+  { server: ConfigUtils.getLocalhostName(), securityPackage: undefined, encrypt: false },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: undefined, encrypt: true },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: 'negotiate', encrypt: false },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: 'negotiate', encrypt: true },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: 'kerberos', encrypt: false },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: 'kerberos', encrypt: true },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: 'ntlm', encrypt: false },
+  { server: ConfigUtils.getLocalhostName(), securityPackage: 'ntlm', encrypt: true },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: undefined, encrypt: false },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: undefined, encrypt: true },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: 'negotiate', encrypt: false },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: 'negotiate', encrypt: true },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: 'kerberos', encrypt: false },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: 'kerberos', encrypt: true },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: 'ntlm', encrypt: false },
+  { server: ConfigUtils.getRemoteHostName(), securityPackage: 'ntlm', encrypt: true }
 ];
 
 const sqlQuery = 'SELECT * FROM dbo.MSreplication_options';

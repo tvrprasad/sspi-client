@@ -1,19 +1,10 @@
 'use strict';
 
-const fs = require('fs');
-const os = require('os');
-
+const ConfigUtils = require('../utils/config.js');
 const Fqdn = require('../../src_js/index.js').Fqdn;
 
 function getLocalhostFqdnPattern() {
-  const localhostFqdn = JSON.parse(fs.readFileSync(
-    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).localhostFqdn;
-  return new RegExp("^" + localhostFqdn + "$");
-}
-
-function getLocalhostName() {
-  return JSON.parse(fs.readFileSync(
-    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).localhostName;
+  return new RegExp("^" + ConfigUtils.getLocalhostFqdn() + "$");
 }
 
 function fqdnTestSuccessImpl(test, hostidentifier, expectedFqdnPattern) {
@@ -40,7 +31,7 @@ exports.ipv6Address = function (test) {
 }
 
 exports.simpleHostname = function(test) {
-  fqdnTestSuccessImpl(test, getLocalhostName(), getLocalhostFqdnPattern());
+  fqdnTestSuccessImpl(test, ConfigUtils.getLocalhostName(), getLocalhostFqdnPattern());
 }
 
 exports.localhostLowerCase = function(test) {
