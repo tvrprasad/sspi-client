@@ -46,6 +46,9 @@ function getFqdnForHostname(hostname, cb) {
 }
 
 // Handles IP address, hostname, localhost or FQDN.
+//
+// Signature of cb is:
+//  cb(err, fqdn)
 function getFqdn(hostidentifier, cb) {
   if (os.type() !== 'Windows_NT') {
     throw new Error('Package currently not-supported on non-Windows platforms.');

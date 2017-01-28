@@ -82,9 +82,6 @@ const getFqdn = () => {
     }
 
     const spn = MakeSpn.makeSpn('MSSQLSvc', fqdn, 2000);
-    // const spn = 'redmond\\venktam';
-    // const spn = 'random string';
-    console.log('spn: ', spn);
     console.log();
     sspiClient = new SspiClientApi.SspiClient(spn);
     canInvokeGetNextBlob = true;

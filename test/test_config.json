@@ -1,0 +1,6 @@
+{
+  "localhostName": "<host1>",
+  "localhostFqdn": "<host1.a.b.com>",
+  "remoteHostName": "<host2>",
+  "remoteHostFqdn": "<host2.a.b.com>"
+}
