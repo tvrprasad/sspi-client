@@ -18,6 +18,12 @@ function getRemoteHostName() {
     os.homedir() + '/.sspi-client/test_config.json', 'utf8')).remoteHostName;
 }
 
+function getRemoteHostFqdn() {
+  return JSON.parse(fs.readFileSync(
+    os.homedir() + '/.sspi-client/test_config.json', 'utf8')).remoteHostFqdn;
+}
+
 module.exports.getLocalhostName = getLocalhostName;
 module.exports.getLocalhostFqdn = getLocalhostFqdn;
 module.exports.getRemoteHostName = getRemoteHostName;
+module.exports.getRemoteHostFqdn = getRemoteHostFqdn;

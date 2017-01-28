@@ -28,6 +28,12 @@ let defaultSspiPackageName = 'Initialization not completed.';
 class SspiClient {
   // Creates an instance of the object in native code, which will invoke
   // Windows SSPI calls.
+  //
+  // spn - Service principal of the destination server.
+  // securityPackage - Optional parameter specifying the security package.
+  //                   Should be one of 'negotiate', 'kerberos', 'ntlm'.
+  //                   If unspecified, the first supported security package
+  //                   from the above list will be used.
   constructor(spn, securityPackage) {
     if (os.type() !== 'Windows_NT') {
       throw new Error('Package currently not-supported on non-Windows platforms.');
@@ -78,7 +84,7 @@ class SspiClient {
   // Gets the next SSPI blob on the client side to send to the server as
   // part of authentication negotiation.
   //
-  // serverResponse - Buffer with SSPI response from the server.
+  // serverResponse - Buffer with SSPI response from the server. Null on first call.
   // serverResponseBeginOffset - Offset within the buffer where the response begins.
   // serverResponseLength - Length of response within the buffer.
   //
@@ -216,6 +222,10 @@ function ensureInitialization(cb) {
   }
 }
 
+// Initialization must be completed before invoking this function. Any calls to
+// getNextBlob will complete initialization. Alternately, invoke
+// ensureInitialization and wait for successful callback before invoking this
+// function.
 function getDefaultSspiPackageName() {
   if (!initializeExecutionCompleted) {
     throw new Error('Initialization not completed.');
@@ -224,6 +234,10 @@ function getDefaultSspiPackageName() {
   return defaultSspiPackageName;
 }
 
+// Initialization must be completed before invoking this function. Any calls to
+// getNextBlob will complete initialization. Alternately, invoke
+// ensureInitialization and wait for successful callback before invoking this
+// function.
 function getAvailableSspiPackageNames() {
   if (!initializeExecutionCompleted) {
     throw new Error('Initialization not completed.');
