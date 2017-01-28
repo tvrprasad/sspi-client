@@ -5,7 +5,7 @@ This is a manual integration test. Below are the steps:
 - Load sspi_test_server\sspi_test_server.sln in Visual Stuido and build.
 - Open two console windows.
 - Run sspi_test_server.exe you build above.
-- Run 'node integration\sspi-client-test.js' in the other console window.
+- Run 'node test\integration\sspi_client_test.js' in the other console window.
 
 ## Expected Output
 
