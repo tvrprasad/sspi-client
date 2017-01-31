@@ -13,6 +13,8 @@ applications that need to communicate with a server using SSPI. Primary
 motivitation for building this module is to help implement Windows Integrated
 Authentication in [Tedious][].
 
+This is currently only supported on Windows and for Node version > 4.0.0.
+
 ## API Documentation
 Below is the API listing with brief optional descriptions. Refer to comments on
 the corresponding functions and classes in code.
