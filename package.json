@@ -1,12 +1,23 @@
 {
   "name": "sspi-client",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "SSPI Client Library.",
+  "author": "Prasad Tammana <prasadgithub@gmail.com>",
+  "license": "MIT",
+  "keywords": [
+    "sspi",
+    "tedious"
+  ],
+  "homepage": "https://github.com/tvrprasad/sspi-client",
+  "bugs": "https://github.com/tvrprasad/sspi-client/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tvrprasad/sspi-client.git"
+  },
   "main": "src_js/index.js",
-  "private": true,
   "dependencies": {
     "bindings": "^1.2.1",
-    "nan": "^2.4.0",
+    "nan": "^2.5.1",
     "semver": "^5.3.0"
   },
   "devDependencies": {
