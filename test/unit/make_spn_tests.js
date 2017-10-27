@@ -1,6 +1,6 @@
 'use strict';
 
-const MakeSpn = require('../../src_js/index.js').MakeSpn;
+const MakeSpn = require('../../src_js/make_spn.js');
 
 exports.makeSpnPort = function(test) {
   const spn = MakeSpn.makeSpn('MSSQLSvc', 'www.example.com', 1433);
