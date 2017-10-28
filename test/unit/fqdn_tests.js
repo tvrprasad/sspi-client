@@ -1,7 +1,7 @@
 'use strict';
 
 const ConfigUtils = require('../utils/config.js');
-const Fqdn = require('../../src_js/index.js').Fqdn;
+const Fqdn = require('../../src_js/fqdn.js');
 
 function getLocalhostFqdnPattern() {
   return new RegExp("^" + ConfigUtils.getLocalhostFqdn() + "$");
