@@ -208,7 +208,7 @@ NAN_METHOD(InitializeAsync)
 NAN_METHOD(EnableDebugLogging)
 {
     DebugLog("%ul: Main event loop: EnableDebugLogging NAN_METHOD.\n", GetCurrentThreadId());
-    SetDebugLogging(info[0]->BooleanValue());
+    SetDebugLogging(Nan::To<bool>(info[0]).FromJust());
 }
 
 // Native implementation of SspiClient surfaced to JavaScript.
@@ -286,13 +286,13 @@ private:
     {
         DebugLog("%ul: Main event loop: SspiClientObject::GetNextBlob.\n", GetCurrentThreadId());
 
-        int inBlobBeginOffset = static_cast<int>(info[1]->IntegerValue());
-        int inBlobLength = static_cast<int>(info[2]->IntegerValue());
+        int inBlobBeginOffset = static_cast<int>(Nan::To<int>(info[1]).FromJust());
+        int inBlobLength = static_cast<int>(Nan::To<int>(info[2]).FromJust());
 
         char* inBlob = nullptr;
         if (inBlobLength > 0)
         {
-            inBlob = node::Buffer::Data(info[0]->ToObject());
+            inBlob = node::Buffer::Data(info[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
         }
 
         Nan::Callback* callback = new Nan::Callback(info[3].As<v8::Function>());
@@ -309,14 +309,14 @@ private:
     {
         DebugLog("%ul: Main event loop: SspiClientObject::UtEnableCannedResponse.\n", GetCurrentThreadId());
         SspiClientObject* sspiClientObject = Nan::ObjectWrap::Unwrap<SspiClientObject>(info.Holder());
-        sspiClientObject->m_sspiImpl->UtEnableCannedResponse(info[0]->BooleanValue());
+        sspiClientObject->m_sspiImpl->UtEnableCannedResponse(Nan::To<bool>(info[0]).FromJust());
     }
 
     static NAN_METHOD(UtForceCompleteAuth)
     {
         DebugLog("%ul: Main event loop: SspiClientObject::UtForceCompleteAuth.\n", GetCurrentThreadId());
         SspiClientObject* sspiClientObject = Nan::ObjectWrap::Unwrap<SspiClientObject>(info.Holder());
-        sspiClientObject->m_sspiImpl->UtForceCompleteAuth(info[0]->BooleanValue());
+        sspiClientObject->m_sspiImpl->UtForceCompleteAuth(Nan::To<bool>(info[0]).FromJust());
     }
 
     // This is a shared pointer because we pass this to
